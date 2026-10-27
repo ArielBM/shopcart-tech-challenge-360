@@ -1,4 +1,4 @@
-/* ShopCart | 003_EstructuraComercial.sql
+/* ShopCart | 002_EstructuraComercial.sql
    Crea: Direccion, Carrito, DetalleCarrito, Cupon, Checkout,
          Pedido, DetallePedido, CompromisoCupon, ReservaInventario,
          IntentoPago, UsoCupon, MovimientoInventario.
