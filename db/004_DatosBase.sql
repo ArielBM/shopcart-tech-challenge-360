@@ -1,6 +1,6 @@
 /* ShopCart | 004_DatosBase.sql
    Inserta: Rol (3), Ubicacion (1), EstadoPedido (7),
-            TransicionEstadoPedido (7).
+            TransicionEstadoPedido (8).
 */
 USE ShopCartDB;
 GO
@@ -49,7 +49,8 @@ BEGIN TRY
         ('PAGADO', 'CANCELADO'),
         ('EN_PREPARACION', 'DESPACHADO'),
         ('EN_PREPARACION', 'CANCELADO'),
-        ('DESPACHADO', 'ENTREGADO')
+        ('DESPACHADO', 'ENTREGADO'),
+        ('PENDIENTE_PAGO', 'CANCELADO')
     ) AS t(Origen, Destino)
     INNER JOIN dbo.EstadoPedido AS origen ON origen.Codigo = t.Origen
     INNER JOIN dbo.EstadoPedido AS destino ON destino.Codigo = t.Destino
