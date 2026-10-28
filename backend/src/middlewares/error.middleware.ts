@@ -47,14 +47,14 @@ export const errorMiddleware: ErrorRequestHandler = (
       });
       return;
     }
-
-    console.error("Error interno:", error);
-
-    res.status(500).json({
-      error: {
-        code: "INTERNAL_ERROR",
-        message: "Ocurrió un error interno.",
-      },
-    });
   }
+
+  console.error("Error interno:", error);
+
+  res.status(500).json({
+    error: {
+      code: "INTERNAL_ERROR",
+      message: "Ocurrió un error interno.",
+    },
+  });
 };
