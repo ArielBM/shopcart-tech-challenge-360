@@ -1,6 +1,6 @@
 import sql from "mssql";
 import { getConnection } from "../../database/connection";
-import type { RegisteredUser, CreateUserData } from "./auth.types";
+import type { RegisteredUser, CreateUserData, LoginUser } from "./auth.types";
 
 export async function createUser(
   data: CreateUserData,
@@ -21,4 +21,17 @@ export async function createUser(
   }
 
   return user;
+}
+
+export async function findUserByEmail(
+  correo: string,
+): Promise<LoginUser | undefined> {
+  const pool = await getConnection();
+
+  const result = await pool
+    .request()
+    .input("Correo", sql.NVarChar(254), correo)
+    .execute<LoginUser>("dbo.SP_Auth_ObtenerUsuarioPorCorreo");
+
+  return result.recordset[0];
 }

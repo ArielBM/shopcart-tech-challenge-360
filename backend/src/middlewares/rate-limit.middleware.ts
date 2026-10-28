@@ -1,9 +1,9 @@
 import { rateLimit } from "express-rate-limit";
 
-export const registerRateLimiter = rateLimit({
+const rateLimitOptions = {
   windowMs: 15 * 60 * 1000,
   limit: 5,
-  standardHeaders: "draft-8",
+  standardHeaders: "draft-8" as const,
   legacyHeaders: false,
   message: {
     error: {
@@ -11,4 +11,7 @@ export const registerRateLimiter = rateLimit({
       message: "Demasiadas solicitudes. Intenta más tarde.",
     },
   },
-});
+};
+
+export const registerRateLimiter = rateLimit(rateLimitOptions);
+export const loginRateLimiter = rateLimit(rateLimitOptions);

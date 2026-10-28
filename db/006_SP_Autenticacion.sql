@@ -1,7 +1,9 @@
 /* ShopCart | 006_SP_Autenticacion.sql
- Crea: SP_Auth_RegistrarCliente.
+ Crea: SP_Auth_RegistrarCliente y SP_Auth_ObtenerUsuarioPorCorreo.
  */
 USE ShopCartDB;
+
+
 GO
 
 CREATE OR ALTER PROCEDURE dbo.SP_Auth_RegistrarCliente
@@ -24,7 +26,7 @@ BEGIN
        OR @HashContrasena = ''
         THROW 51010, N'Datos de registro obligatorios.', 1;
 
-    DECLARE @IDRol INT;
+    DECLARE @IDRol AS INT;
 
     SELECT @IDRol = IDRol
     FROM dbo.Rol
@@ -41,4 +43,26 @@ BEGIN
     )
     OUTPUT INSERTED.IDUsuario, INSERTED.Correo, INSERTED.Nombre
     VALUES                  (@IDRol, @Correo, @HashContrasena, @Nombre);
+END
+
+
+GO
+
+CREATE OR ALTER PROCEDURE dbo.SP_Auth_ObtenerUsuarioPorCorreo
+    @Correo NVARCHAR(254)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT u.IDUsuario,
+           u.Correo,
+           u.Nombre,
+           u.HashContrasena,
+           r.Codigo AS Rol
+    FROM dbo.Usuario AS u
+         INNER JOIN
+         dbo.Rol AS r
+         ON r.IDRol = u.IDRol
+    WHERE u.Correo = LOWER(LTRIM(RTRIM(@Correo)))
+          AND u.Activo = 1;
 END

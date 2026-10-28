@@ -1,7 +1,11 @@
 import { Router } from "express";
-import { register } from "./auth.controller";
-import { registerRateLimiter } from "../../middlewares/rate-limit.middleware";
+import { login, register } from "./auth.controller";
+import {
+  registerRateLimiter,
+  loginRateLimiter,
+} from "../../middlewares/rate-limit.middleware";
 
 export const authRouter = Router();
 
 authRouter.post("/register", registerRateLimiter, register);
+authRouter.post("/login", loginRateLimiter, login);
