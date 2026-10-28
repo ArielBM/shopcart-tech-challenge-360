@@ -144,7 +144,7 @@ BEGIN TRY
         IDBitacora BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Bitacora PRIMARY KEY,
         IDUsuario INT NOT NULL,
         Modulo VARCHAR(30) NOT NULL,
-        Entidad NVARCHAR(100) NOT NULL,
+        Entidad VARCHAR(100) NOT NULL,
         IDEntidad BIGINT NOT NULL,
         Accion VARCHAR(30) NOT NULL,
         ValorAnterior NVARCHAR(MAX) NULL,

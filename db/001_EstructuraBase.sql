@@ -37,7 +37,7 @@ BEGIN TRY
         IDUsuario INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Usuario PRIMARY KEY,
         IDRol INT NOT NULL,
         Correo NVARCHAR(254) COLLATE Latin1_General_100_CI_AS NOT NULL,
-        HashContrasena NVARCHAR(255) NOT NULL,
+        HashContrasena VARCHAR(255) NOT NULL,
         Nombre NVARCHAR(150) NOT NULL,
         Activo BIT NOT NULL,
         FechaCreacion DATETIME2(3) NOT NULL,
@@ -51,8 +51,8 @@ BEGIN TRY
     ALTER TABLE dbo.Usuario ADD CONSTRAINT CK_Usuario_CorreoNoVacio CHECK (LEN(LTRIM(RTRIM(Correo))) > 0);
     -- El rol debe existir.
     ALTER TABLE dbo.Usuario ADD CONSTRAINT FK_Usuario_Rol FOREIGN KEY (IDRol) REFERENCES dbo.Rol (IDRol);
-    -- Busqueda unica por correo.
-    CREATE UNIQUE INDEX UX_Usuario_Correo ON dbo.Usuario (Correo);
+    -- Un correo por cuenta.
+    ALTER TABLE dbo.Usuario ADD CONSTRAINT UQ_Usuario_Correo UNIQUE (Correo);
 
     -- 3. Categoria | Clasificacion del catalogo.
     CREATE TABLE dbo.Categoria (
@@ -93,7 +93,7 @@ BEGIN TRY
     CREATE TABLE dbo.Variante (
         IDVariante INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Variante PRIMARY KEY,
         IDProducto INT NOT NULL,
-        SKU NVARCHAR(64) NOT NULL,
+        SKU VARCHAR(64) NOT NULL,
         PrecioActual DECIMAL(18,2) NOT NULL,
         Activa BIT NOT NULL,
         FechaCreacion DATETIME2(3) NOT NULL,
@@ -163,7 +163,7 @@ BEGIN TRY
     -- 10. Ubicacion | Limita ubicaciones a tienda o bodega.
     CREATE TABLE dbo.Ubicacion (
         IDUbicacion INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Ubicacion PRIMARY KEY,
-        Codigo NVARCHAR(30) NOT NULL,
+        Codigo VARCHAR(30) NOT NULL,
         Nombre NVARCHAR(120) NOT NULL,
         Tipo VARCHAR(15) NOT NULL,
         Activa BIT NOT NULL

@@ -20,7 +20,7 @@ BEGIN TRY
         IDDireccion BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Direccion PRIMARY KEY,
         IDUsuario INT NOT NULL,
         NombreDestinatario NVARCHAR(150) NOT NULL,
-        Telefono NVARCHAR(30) NULL,
+        Telefono VARCHAR(30) NULL,
         Departamento NVARCHAR(100) NOT NULL,
         Municipio NVARCHAR(100) NOT NULL,
         DireccionTexto NVARCHAR(500) NOT NULL,
@@ -76,7 +76,7 @@ BEGIN TRY
     -- 4. Cupon | Descuento con vigencia, alcance y limites de uso.
     CREATE TABLE dbo.Cupon (
         IDCupon INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Cupon PRIMARY KEY,
-        Codigo NVARCHAR(50) NOT NULL,
+        Codigo VARCHAR(50) NOT NULL,
         TipoDescuento VARCHAR(15) NOT NULL,
         Valor DECIMAL(18,2) NOT NULL,
         Alcance VARCHAR(15) NOT NULL,
@@ -140,7 +140,7 @@ BEGIN TRY
         Total DECIMAL(18,2) NOT NULL,
         -- Instantanea de direccion: los cambios al perfil no alteran el pedido.
         Destinatario NVARCHAR(150) NOT NULL,
-        TelefonoEntrega NVARCHAR(30) NULL,
+        TelefonoEntrega VARCHAR(30) NULL,
         DepartamentoEntrega NVARCHAR(100) NOT NULL,
         MunicipioEntrega NVARCHAR(100) NOT NULL,
         DireccionEntregaTexto NVARCHAR(500) NOT NULL,
@@ -176,7 +176,7 @@ BEGIN TRY
         IDDetallePedido BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_DetallePedido PRIMARY KEY,
         IDPedido BIGINT NOT NULL,
         IDVariante INT NOT NULL,
-        SKUHistorico NVARCHAR(64) NOT NULL,
+        SKUHistorico VARCHAR(64) NOT NULL,
         NombreHistorico NVARCHAR(250) NOT NULL,
         Cantidad INT NOT NULL,
         CantidadDevuelta INT NOT NULL,
@@ -254,7 +254,7 @@ BEGIN TRY
         HuellaSolicitud VARBINARY(32) NOT NULL,
         Estado VARCHAR(20) NOT NULL,
         Monto DECIMAL(18,2) NOT NULL,
-        ReferenciaProcesador NVARCHAR(100) NULL,
+        ReferenciaProcesador VARCHAR(100) NULL,
         FechaCreacion DATETIME2(3) NOT NULL,
         FechaResolucion DATETIME2(3) NULL
     );

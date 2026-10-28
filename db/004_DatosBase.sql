@@ -19,9 +19,9 @@ BEGIN TRY
         INSERT INTO dbo.Rol (Codigo, Nombre) VALUES ('ADMINISTRADOR', N'Administrador');
 
     -- Bodega inicial del ecommerce.
-    IF NOT EXISTS (SELECT 1 FROM dbo.Ubicacion WHERE Codigo = N'BOD-CENTRAL')
+    IF NOT EXISTS (SELECT 1 FROM dbo.Ubicacion WHERE Codigo = 'BOD-CENTRAL')
         INSERT INTO dbo.Ubicacion (Codigo, Nombre, Tipo)
-        VALUES (N'BOD-CENTRAL', N'Bodega Central', 'BODEGA');
+        VALUES ('BOD-CENTRAL', N'Bodega Central', 'BODEGA');
 
     -- Estados del pedido.
     INSERT INTO dbo.EstadoPedido (Codigo, Nombre)
