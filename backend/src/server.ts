@@ -9,7 +9,9 @@ async function start(): Promise<void> {
     console.log("Conexión a SQL Server establecida");
 
     app.listen(env.port, () => {
-      console.log(`ShopCart API: http://localhost:${String(env.port)}`);
+      console.log(
+        `ShopCart(${env.nodeEnv}) API: http://localhost:${String(env.port)}`,
+      );
     });
   } catch (error: unknown) {
     console.error("Error al iniciar ShopCart:", error);
