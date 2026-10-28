@@ -1,17 +1,19 @@
 import { SignJWT, jwtVerify } from "jose";
 import { authConfig } from "../../config/auth.config";
-import { AccessTokenPayload } from "./auth.types";
+import { isRole, type AccessTokenPayload } from "./auth.types";
 
 export async function createAccessToken(
   user: AccessTokenPayload,
 ): Promise<string> {
+  const issuedAt = Math.floor(Date.now() / 1000);
+
   return new SignJWT({ rol: user.rol })
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
     .setSubject(String(user.idUsuario))
     .setIssuer(authConfig.jwtIssuer)
     .setAudience(authConfig.jwtAudience)
-    .setIssuedAt()
-    .setExpirationTime(authConfig.accessTokenExpiration)
+    .setIssuedAt(issuedAt)
+    .setExpirationTime(issuedAt + authConfig.accessTokenExpirationSeconds)
     .sign(authConfig.jwtSecret);
 }
 
@@ -30,7 +32,7 @@ export async function verifyAccessToken(
   if (
     !Number.isSafeInteger(idUsuario) ||
     idUsuario <= 0 ||
-    typeof payload.rol !== "string"
+    !isRole(payload.rol)
   ) {
     throw new Error("Access token con claims inválidos.");
   }

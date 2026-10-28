@@ -15,7 +15,7 @@ export function authorize(...allowedRoles: Role[]): RequestHandler {
       return;
     }
 
-    if (!allowedRoles.includes(auth.rol as Role)) {
+    if (!allowedRoles.includes(auth.rol)) {
       res.status(403).json({
         error: {
           code: "FORBIDDEN",

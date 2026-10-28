@@ -20,7 +20,11 @@ export interface LoginUser {
 
 export interface AccessTokenPayload {
   idUsuario: number;
-  rol: string;
+  rol: Role;
 }
 
 export type Role = "CLIENTE" | "OPERADOR" | "ADMINISTRADOR";
+
+export function isRole(value: unknown): value is Role {
+  return value === "CLIENTE" || value === "OPERADOR" || value === "ADMINISTRADOR";
+}
