@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { login, register } from "./auth.controller";
+import { login, logout, refresh, register } from "./auth.controller";
+import { protectAuthRequest } from "../../middlewares/csrf.middleware";
 import {
   registerRateLimiter,
   loginRateLimiter,
@@ -7,5 +8,12 @@ import {
 
 export const authRouter = Router();
 
-authRouter.post("/register", registerRateLimiter, register);
-authRouter.post("/login", loginRateLimiter, login);
+authRouter.use((_req, res, next) => {
+  res.set("Cache-Control", "no-store");
+  next();
+});
+
+authRouter.post("/register", protectAuthRequest, registerRateLimiter, register);
+authRouter.post("/login", protectAuthRequest, loginRateLimiter, login);
+authRouter.post("/refresh", protectAuthRequest, refresh);
+authRouter.post("/logout", protectAuthRequest, logout);

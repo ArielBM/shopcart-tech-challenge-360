@@ -1,10 +1,17 @@
 import * as argon2 from "argon2";
 
 import { authConfig } from "../../config/auth.config";
-import { createUser, findUserByEmail } from "./auth.repository";
+import {
+  createSession,
+  createUser,
+  findUserByEmail,
+  rotateSession,
+  revokeSession,
+} from "./auth.repository";
 import type { LoginInput, RegisterInput } from "./auth.schemas";
 import { createAccessToken } from "./auth.tokens";
 import { isRole } from "./auth.types";
+import { generateRefreshToken, hashRefreshToken } from "./auth.refresh";
 
 // Hash ficticio con el mismo coste que el registro; evita omitir Argon2 si no existe el usuario.
 const dummyPasswordHash =
@@ -42,8 +49,14 @@ export async function validateCredentials(data: LoginInput) {
     throw new Error("El usuario tiene un rol no admitido.");
   }
 
+  const refreshToken = generateRefreshToken();
+  const tokenHash = hashRefreshToken(refreshToken);
+
+  const session = await createSession(user.IDUsuario, tokenHash);
+
   const accessToken = await createAccessToken({
     idUsuario: user.IDUsuario,
+    idFamilia: session.IDFamilia,
     rol: user.Rol,
   });
 
@@ -57,5 +70,43 @@ export async function validateCredentials(data: LoginInput) {
     accessToken,
     tokenType: "Bearer" as const,
     expiresIn: authConfig.accessTokenExpirationSeconds,
+    refreshToken,
+    refreshTokenExpiresAt: session.FechaExpiracion,
   };
+}
+
+export async function refreshSession(currentToken: string) {
+  const newRefreshToken = generateRefreshToken();
+
+  const currentTokenHash = hashRefreshToken(currentToken);
+  const newTokenHash = hashRefreshToken(newRefreshToken);
+
+  const session = await rotateSession(currentTokenHash, newTokenHash);
+
+  if (!isRole(session.Rol))
+    throw new Error("La sesión tiene un rol no admitido.");
+
+  const accessToken = await createAccessToken({
+    idUsuario: session.IDUsuario,
+    idFamilia: session.IDFamilia,
+    rol: session.Rol,
+  });
+
+  return {
+    user: {
+      idUsuario: session.IDUsuario,
+      correo: session.Correo,
+      nombre: session.Nombre,
+      rol: session.Rol,
+    },
+    accessToken,
+    tokenType: "Bearer" as const,
+    expiresIn: authConfig.accessTokenExpirationSeconds,
+    refreshToken: newRefreshToken,
+    refreshTokenExpiresAt: session.FechaExpiracion,
+  };
+}
+
+export async function logoutSession(token: string): Promise<void> {
+  await revokeSession(hashRefreshToken(token));
 }

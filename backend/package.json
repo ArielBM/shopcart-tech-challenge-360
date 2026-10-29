@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "test": "node --import tsx --test src/modules/auth/auth.test.ts",
     "dev": "node --env-file=.env --import tsx --watch src/server.ts",
     "dev:development": "node --env-file=.env.development --import tsx --watch src/server.ts",
     "dev:production": "node --env-file=.env.production --import tsx --watch src/server.ts",
@@ -19,6 +20,7 @@
   "type": "commonjs",
   "dependencies": {
     "argon2": "^0.45.1",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "express": "^5.3.0",
     "express-rate-limit": "^8.7.1",
@@ -29,6 +31,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/mssql": "^12.3.0",

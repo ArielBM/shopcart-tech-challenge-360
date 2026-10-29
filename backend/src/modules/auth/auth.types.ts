@@ -20,11 +20,29 @@ export interface LoginUser {
 
 export interface AccessTokenPayload {
   idUsuario: number;
+  idFamilia: string;
   rol: Role;
+}
+
+export interface CreatedSession {
+  IDRefreshToken: number;
+  IDFamilia: string;
+  FechaExpiracion: Date;
+}
+
+export interface RotatedSession {
+  IDUsuario: number;
+  IDFamilia: string;
+  Correo: string;
+  Nombre: string;
+  Rol: string;
+  FechaExpiracion: Date;
 }
 
 export type Role = "CLIENTE" | "OPERADOR" | "ADMINISTRADOR";
 
 export function isRole(value: unknown): value is Role {
-  return value === "CLIENTE" || value === "OPERADOR" || value === "ADMINISTRADOR";
+  return (
+    value === "CLIENTE" || value === "OPERADOR" || value === "ADMINISTRADOR"
+  );
 }
