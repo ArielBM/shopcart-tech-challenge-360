@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { loginSchema, registerSchema } from "./auth.schemas";
 import {
+  logoutSession,
   refreshSession,
   registerClient,
   validateCredentials,
@@ -75,4 +76,21 @@ export async function refresh(req: Request, res: Response): Promise<void> {
   res.status(200).json({
     data: responseData,
   });
+}
+
+export async function logout(req: Request, res: Response): Promise<void> {
+  const cookies = req.cookies as Record<string, unknown> | undefined;
+  const refreshToken = cookies?.refreshToken;
+
+  if (typeof refreshToken === "string" && refreshToken)
+    await logoutSession(refreshToken);
+
+  res.clearCookie("refreshToken", {
+    httpOnly: true,
+    secure: env.nodeEnv === "production",
+    sameSite: "lax",
+    path: "/api/v1/auth",
+  });
+
+  res.sendStatus(204);
 }

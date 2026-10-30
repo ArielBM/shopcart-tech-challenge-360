@@ -35,7 +35,7 @@ export const errorMiddleware: ErrorRequestHandler = (
     const message =
       sqlError.message ?? sqlError.originalError?.info?.message ?? "";
 
-    if ([51021, 51022, 51023, 51024, 51025].includes(number ?? -1)) {
+    if ([51022, 51023, 51024].includes(number ?? -1)) {
       res.clearCookie("refreshToken", {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -66,7 +66,7 @@ export const errorMiddleware: ErrorRequestHandler = (
     }
   }
 
-  console.error("Error interno:", error);
+  console.error("Error interno de la aplicación.");
 
   res.status(500).json({
     error: {

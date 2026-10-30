@@ -51,7 +51,7 @@ export async function createSession(
   const result = await pool
     .request()
     .input("IDUsuario", sql.Int, idUsuario)
-    .input("TokenHas", sql.VarBinary(32), tokenHash)
+    .input("TokenHash", sql.VarBinary(32), tokenHash)
     .execute<CreatedSession>("dbo.SP_Auth_CrearSesion");
 
   const session = result.recordset[0];
@@ -80,3 +80,13 @@ export async function rotateSession(
 
   return session;
 }
+
+export async function revokeSession(tokenHash: Buffer): Promise<void> {
+  const pool = await getConnection();
+
+  await pool
+    .request()
+    .input("TokenHash", sql.VarBinary(32), tokenHash)
+    .execute("dbo.SP_Auth_RevocarSesion");
+}
+

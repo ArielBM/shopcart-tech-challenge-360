@@ -3,6 +3,7 @@
  - SP_Auth_RegistrarCliente
  - SP_Auth_ObtenerUsuarioPorCorreo
  - SP_Auth_CrearSesion
+ - SP_Auth_RotarSesion
  */
 USE ShopCartDB;
 
@@ -131,7 +132,11 @@ BEGIN
     IF @TokenHashActual = @TokenHashNuevo
         THROW 51025, N'El nuevo token debe ser diferente.', 1;
     
-    DECLARE @Ahora AS DATETIME2(3) = SYSUTCDATETIME();
+    DECLARE @Ahora AS DATETIME2(3);
+    
+    DECLARE @Recurso AS NVARCHAR(255);
+    
+    DECLARE @ResultadoBloqueo AS INT;
     
     DECLARE @IDAnterior AS BIGINT;
     
@@ -149,12 +154,26 @@ BEGIN
     
     DECLARE @Reutilizado AS BIT = 0;
     
+    -- Identificar la familia sin retener bloqueos.
+    SELECT @IDFamilia = IDFamilia
+    FROM dbo.RefreshToken
+    WHERE TokenHash = @TokenHashActual;
+    
+    IF @IDFamilia IS NULL
+        THROW 51022, N'Token desconocido.', 1;
+    
+    SET @Recurso = N'ShopCart:Refresh:' + CONVERT (NVARCHAR(36), @IDFamilia);
+    
     BEGIN TRY
         BEGIN TRANSACTION;
         
+        EXECUTE @ResultadoBloqueo = sys.sp_getapplock @Resource = @Recurso, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 10000;
+        
+        IF @ResultadoBloqueo < 0
+            THROW 51026, N'No se pudo bloquear la sesión.', 1;
+        
         SELECT @IDAnterior = rt.IDRefreshToken,
                @IDUsuario = rt.IDUsuario,
-               @IDFamilia = rt.IDFamilia,
                @Expiracion = rt.FechaExpiracion,
                @Revocacion = rt.FechaRevocacion,
                @Activo = u.Activo
@@ -162,7 +181,10 @@ BEGIN
              INNER JOIN
              dbo.Usuario AS u
              ON u.IDUsuario = rt.IDUsuario
-        WHERE rt.TokenHash = @TokenHashActual;
+        WHERE rt.TokenHash = @TokenHashActual
+              AND rt.IDFamilia = @IDFamilia;
+        
+        SET @Ahora = SYSUTCDATETIME();
         
         IF @IDAnterior IS NULL
             THROW 51022, N'Token desconocido.', 1;
@@ -227,4 +249,58 @@ BEGIN
          dbo.Rol AS r
          ON r.IDRol = u.IDRol
     WHERE rt.IDRefreshToken = @IDNuevo;
+END
+
+GO
+
+CREATE OR ALTER PROCEDURE dbo.SP_Auth_RevocarSesion
+    @TokenHash VARBINARY(32)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    IF @TokenHash IS NULL OR DATALENGTH(@TokenHash) <> 32
+        THROW 51021, N'Hash de token inválido.', 1;
+
+    DECLARE @IDFamilia UNIQUEIDENTIFIER;
+    DECLARE @Recurso NVARCHAR(255);
+    DECLARE @ResultadoBloqueo INT;
+
+    SELECT @IDFamilia = IDFamilia
+    FROM dbo.RefreshToken
+    WHERE TokenHash = @TokenHash;
+
+    -- Logout repetido o token desconocido: no hay nada que revocar.
+    IF @IDFamilia IS NULL
+        RETURN;
+
+    SET @Recurso = N'ShopCart:Refresh:'
+        + CONVERT(NVARCHAR(36), @IDFamilia);
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        EXEC @ResultadoBloqueo = sys.sp_getapplock
+            @Resource = @Recurso,
+            @LockMode = 'Exclusive',
+            @LockOwner = 'Transaction',
+            @LockTimeout = 10000;
+
+        IF @ResultadoBloqueo < 0
+            THROW 51026, N'No se pudo bloquear la sesión.', 1;
+
+        UPDATE dbo.RefreshToken
+        SET FechaRevocacion = SYSUTCDATETIME()
+        WHERE IDFamilia = @IDFamilia
+          AND FechaRevocacion IS NULL;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK;
+
+        THROW;
+    END CATCH
 END

@@ -15,3 +15,5 @@ const rateLimitOptions = {
 
 export const registerRateLimiter = rateLimit(rateLimitOptions);
 export const loginRateLimiter = rateLimit(rateLimitOptions);
+export const refreshRateLimiter = rateLimit(rateLimitOptions);
+export const logoutRateLimiter = rateLimit(rateLimitOptions);

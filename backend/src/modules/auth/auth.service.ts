@@ -5,6 +5,7 @@ import {
   createSession,
   createUser,
   findUserByEmail,
+  revokeSession,
   rotateSession,
 } from "./auth.repository";
 import type { LoginInput, RegisterInput } from "./auth.schemas";
@@ -102,4 +103,9 @@ export async function refreshSession(currentToken: string) {
     refreshToken: newRefreshToken,
     refreshTokenExpiresAt: session.FechaExpiracion,
   };
+}
+
+export async function logoutSession(refreshToken: string): Promise<void> {
+  const tokenHash = hashRefreshToken(refreshToken);
+  await revokeSession(tokenHash);
 }
