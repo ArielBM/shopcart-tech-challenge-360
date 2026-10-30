@@ -6,7 +6,6 @@ import {
   createUser,
   findUserByEmail,
   rotateSession,
-  revokeSession,
 } from "./auth.repository";
 import type { LoginInput, RegisterInput } from "./auth.schemas";
 import { createAccessToken } from "./auth.tokens";
@@ -56,7 +55,6 @@ export async function validateCredentials(data: LoginInput) {
 
   const accessToken = await createAccessToken({
     idUsuario: user.IDUsuario,
-    idFamilia: session.IDFamilia,
     rol: user.Rol,
   });
 
@@ -88,7 +86,6 @@ export async function refreshSession(currentToken: string) {
 
   const accessToken = await createAccessToken({
     idUsuario: session.IDUsuario,
-    idFamilia: session.IDFamilia,
     rol: session.Rol,
   });
 
@@ -105,8 +102,4 @@ export async function refreshSession(currentToken: string) {
     refreshToken: newRefreshToken,
     refreshTokenExpiresAt: session.FechaExpiracion,
   };
-}
-
-export async function logoutSession(token: string): Promise<void> {
-  await revokeSession(hashRefreshToken(token));
 }

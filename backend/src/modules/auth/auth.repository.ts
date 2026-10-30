@@ -51,7 +51,7 @@ export async function createSession(
   const result = await pool
     .request()
     .input("IDUsuario", sql.Int, idUsuario)
-    .input("TokenHash", sql.VarBinary(32), tokenHash)
+    .input("TokenHas", sql.VarBinary(32), tokenHash)
     .execute<CreatedSession>("dbo.SP_Auth_CrearSesion");
 
   const session = result.recordset[0];
@@ -60,25 +60,6 @@ export async function createSession(
     throw new Error("La creación de sesión no devolvió resultados.");
 
   return session;
-}
-
-export async function revokeSession(tokenHash: Buffer): Promise<void> {
-  const pool = await getConnection();
-  await pool.request()
-    .input("TokenHash", sql.VarBinary(32), tokenHash)
-    .execute("dbo.SP_Auth_RevocarSesion");
-}
-
-export async function findActiveSession(
-  idUsuario: number,
-  idFamilia: string,
-): Promise<Pick<LoginUser, "IDUsuario" | "Rol"> | undefined> {
-  const pool = await getConnection();
-  const result = await pool.request()
-    .input("IDUsuario", sql.Int, idUsuario)
-    .input("IDFamilia", sql.UniqueIdentifier, idFamilia)
-    .execute<Pick<LoginUser, "IDUsuario" | "Rol">>("dbo.SP_Auth_ObtenerSesionActiva");
-  return result.recordset[0];
 }
 
 export async function rotateSession(

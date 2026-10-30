@@ -11,4 +11,5 @@ export const authConfig = {
   jwtIssuer: "shopcart-api",
   jwtAudience: "shopcart-client",
   accessTokenExpirationSeconds: 15 * 60,
+  refreshTokenExpirationDays: 7,
 } as const;

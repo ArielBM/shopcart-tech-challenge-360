@@ -1,9 +1,7 @@
 import type { ErrorRequestHandler } from "express";
 import { z, ZodError } from "zod";
-import { refreshCookieName, refreshCookieOptions } from "../modules/auth/auth.refresh";
 
 interface SqlError {
-  type?: string;
   number?: number;
   message?: string;
   originalError?: {
@@ -33,35 +31,23 @@ export const errorMiddleware: ErrorRequestHandler = (
 
   if (typeof error === "object" && error !== null) {
     const sqlError = error as SqlError;
-    if (sqlError.type === "entity.parse.failed" || sqlError.type === "entity.too.large") {
-      const tooLarge = sqlError.type === "entity.too.large";
-      res.status(tooLarge ? 413 : 400).json({
-        error: {
-          code: tooLarge ? "PAYLOAD_TOO_LARGE" : "INVALID_JSON",
-          message: tooLarge ? "El cuerpo de la solicitud es demasiado grande." : "El JSON proporcionado no es válido.",
-        },
-      });
-      return;
-    }
     const number = sqlError.number ?? sqlError.originalError?.info?.number;
     const message =
       sqlError.message ?? sqlError.originalError?.info?.message ?? "";
 
-    if ([51020, 51022, 51023, 51024].includes(number ?? -1)) {
-      res.clearCookie(refreshCookieName, refreshCookieOptions);
+    if ([51021, 51022, 51023, 51024, 51025].includes(number ?? -1)) {
+      res.clearCookie("refreshToken", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/api/v1/auth",
+      });
 
       res.status(401).json({
         error: {
           code: "INVALID_REFRESH_TOKEN",
           message: "La sesión expiró o dejó de ser válida.",
         },
-      });
-      return;
-    }
-
-    if (number === 51026 || number === 1205) {
-      res.status(503).json({
-        error: { code: "SERVICE_UNAVAILABLE", message: "No se pudo procesar la sesión. Intenta más tarde." },
       });
       return;
     }
@@ -80,8 +66,7 @@ export const errorMiddleware: ErrorRequestHandler = (
     }
   }
 
-  // No registrar objetos del driver, bodies, cookies ni mensajes con posibles tokens.
-  console.error("Error interno de la aplicación.");
+  console.error("Error interno:", error);
 
   res.status(500).json({
     error: {

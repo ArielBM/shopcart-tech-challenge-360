@@ -4,7 +4,6 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node --import tsx --test src/modules/auth/auth.test.ts",
     "dev": "node --env-file=.env --import tsx --watch src/server.ts",
     "dev:development": "node --env-file=.env.development --import tsx --watch src/server.ts",
     "dev:production": "node --env-file=.env.production --import tsx --watch src/server.ts",

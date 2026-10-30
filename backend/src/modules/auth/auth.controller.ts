@@ -4,11 +4,8 @@ import {
   refreshSession,
   registerClient,
   validateCredentials,
-  logoutSession,
 } from "./auth.service";
-import {
-  isRefreshToken, refreshCookieName, refreshCookieOptions,
-} from "./auth.refresh";
+import { env } from "../../config/env";
 
 export async function register(req: Request, res: Response): Promise<void> {
   const input = registerSchema.parse(req.body);
@@ -35,8 +32,11 @@ export async function login(req: Request, res: Response): Promise<void> {
 
   const { refreshToken, refreshTokenExpiresAt, ...responseData } = result;
 
-  res.cookie(refreshCookieName, refreshToken, {
-    ...refreshCookieOptions,
+  res.cookie("refreshToken", refreshToken, {
+    httpOnly: true,
+    secure: env.nodeEnv === "production",
+    sameSite: "lax",
+    path: "/api/v1/auth",
     expires: refreshTokenExpiresAt,
   });
 
@@ -50,8 +50,7 @@ export async function refresh(req: Request, res: Response): Promise<void> {
 
   const currentToken = cookies?.refreshToken;
 
-  if (!isRefreshToken(currentToken)) {
-    res.clearCookie(refreshCookieName, refreshCookieOptions);
+  if (typeof currentToken !== "string" || !currentToken) {
     res.status(401).json({
       error: {
         code: "UNAUTHORIZED",
@@ -65,20 +64,15 @@ export async function refresh(req: Request, res: Response): Promise<void> {
 
   const { refreshToken, refreshTokenExpiresAt, ...responseData } = result;
 
-  res.cookie(refreshCookieName, refreshToken, {
-    ...refreshCookieOptions,
+  res.cookie("refreshToken", refreshToken, {
+    httpOnly: true,
+    secure: env.nodeEnv === "production",
+    sameSite: "lax",
+    path: "/api/v1/auth",
     expires: refreshTokenExpiresAt,
   });
 
   res.status(200).json({
     data: responseData,
   });
-}
-
-export async function logout(req: Request, res: Response): Promise<void> {
-  const cookies = req.cookies as Record<string, unknown> | undefined;
-  const token = cookies?.refreshToken;
-  if (isRefreshToken(token)) await logoutSession(token);
-  res.clearCookie(refreshCookieName, refreshCookieOptions);
-  res.status(204).end();
 }

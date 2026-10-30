@@ -1,8 +1,5 @@
 import type { RequestHandler } from "express";
 import { verifyAccessToken } from "../modules/auth/auth.tokens";
-import { errors } from "jose";
-import { findActiveSession } from "../modules/auth/auth.repository";
-import { isRole, type AccessTokenPayload } from "../modules/auth/auth.types";
 
 export const authenticate: RequestHandler = async (req, res, next) => {
   const authorization = req.headers.authorization;
@@ -29,32 +26,16 @@ export const authenticate: RequestHandler = async (req, res, next) => {
     return;
   }
 
-  let payload: AccessTokenPayload;
   try {
-    payload = await verifyAccessToken(token);
-  } catch (error: unknown) {
-    if (!(error instanceof errors.JOSEError)) {
-      next(error);
-      return;
-    }
+    const user = await verifyAccessToken(token);
+    res.locals.auth = user;
+    next();
+  } catch {
     res.status(401).json({
       error: {
         code: "INVALID_TOKEN",
         message: "Token inválido o expirado.",
       },
     });
-    return;
   }
-
-  // La familia vigente vincula el JWT al logout, replay y vencimiento absoluto.
-  const user = await findActiveSession(payload.idUsuario, payload.idFamilia);
-  if (!user) {
-    res.status(401).json({
-      error: { code: "INVALID_TOKEN", message: "Sesión no válida." },
-    });
-    return;
-  }
-  if (!isRole(user.Rol)) throw new Error("El usuario tiene un rol no admitido.");
-  res.locals.auth = { idUsuario: user.IDUsuario, idFamilia: payload.idFamilia, rol: user.Rol };
-  next();
 };

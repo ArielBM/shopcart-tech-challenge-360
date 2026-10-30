@@ -20,7 +20,6 @@ export interface LoginUser {
 
 export interface AccessTokenPayload {
   idUsuario: number;
-  idFamilia: string;
   rol: Role;
 }
 
@@ -32,7 +31,6 @@ export interface CreatedSession {
 
 export interface RotatedSession {
   IDUsuario: number;
-  IDFamilia: string;
   Correo: string;
   Nombre: string;
   Rol: string;
