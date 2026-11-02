@@ -64,14 +64,14 @@ export async function listProductsService(
   filters: ListProductInput,
   soloActivos: boolean,
 ) {
-  const products = await listProducts(filters, soloActivos);
+  const { products, totalRegistros } = await listProducts(filters, soloActivos);
 
   return {
     data: products.map(toProductListResponse),
     pagination: {
       pagina: filters.pagina,
       tamanoPagina: filters.tamanoPagina,
-      totalRegistros: products[0]?.TotalRegistros ?? 0,
+      totalRegistros,
     },
   };
 }

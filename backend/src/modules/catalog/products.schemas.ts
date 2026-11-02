@@ -16,10 +16,18 @@ export const updateProductSchema = createProductSchema.extend({
   activo: z.boolean(),
 });
 
-const priceSchema = z.coerce
-  .number<number>()
-  .nonnegative()
-  .max(9999999999999.99);
+const priceSchema = z
+  .string()
+  .regex(
+    /^(?:0|[1-9]\d{0,15})(?:\.\d{1,2})?$/,
+    "El precio debe ser positivo y tener máximo dos decimales.",
+  );
+
+function toCents(value: string): bigint {
+  const [integer = "0", fraction = ""] = value.split(".");
+
+  return BigInt(integer) * 100n + BigInt(fraction.padEnd(2, "0"));
+}
 
 export const listProductsSchema = z
   .strictObject({
@@ -41,7 +49,7 @@ export const listProductsSchema = z
     (data) =>
       data.precioMinimo === undefined ||
       data.precioMaximo === undefined ||
-      data.precioMinimo <= data.precioMaximo,
+      toCents(data.precioMinimo) <= toCents(data.precioMaximo),
     { message: "El rango de precios no es válido." },
   );
 

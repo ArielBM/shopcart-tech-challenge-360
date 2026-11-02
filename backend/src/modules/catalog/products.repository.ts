@@ -54,21 +54,28 @@ export async function updateProduct(
 export async function listProducts(
   filters: ListProductInput,
   soloActivos: boolean,
-): Promise<ProductListRecord[]> {
+): Promise<{
+  products: ProductListRecord[];
+  totalRegistros: number;
+}> {
   const pool = await getConnection();
 
   const result = await pool
     .request()
     .input("Busqueda", sql.NVarChar(200), filters.busqueda ?? null)
     .input("IDCategoria", sql.Int, filters.idCategoria ?? null)
-    .input("PrecioMinimo", sql.Decimal(18, 2), filters.precioMinimo ?? null)
-    .input("PrecioMaximo", sql.Decimal(18, 2), filters.precioMaximo ?? null)
+    .input("PrecioMinimo", sql.VarChar(20), filters.precioMinimo ?? null)
+    .input("PrecioMaximo", sql.VarChar(20), filters.precioMaximo ?? null)
     .input("SoloDisponibles", sql.Bit, filters.soloDisponibles)
     .input("SoloActivos", sql.Bit, soloActivos)
     .input("Pagina", sql.Int, filters.pagina)
     .input("TamanoPagina", sql.Int, filters.tamanoPagina)
     .input("Orden", sql.VarChar(20), filters.orden)
+    .output("TotalRegistros", sql.Int)
     .execute<ProductListRecord>("dbo.SP_Catalogo_ListarProductos");
 
-  return result.recordset;
+  return {
+    products: result.recordset,
+    totalRegistros: result.output.TotalRegistros as number,
+  };
 }
