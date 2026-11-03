@@ -783,6 +783,14 @@ BEGIN
     
     DECLARE @IDDetallePedido AS BIGINT;
     
+    DECLARE @IDMovimientoInventario AS BIGINT;
+    
+    DECLARE @SaldosVenta TABLE (
+        ExistenciaAnterior INT NOT NULL,
+        ReservadaAnterior  INT NOT NULL,
+        ExistenciaNueva    INT NOT NULL,
+        ReservadaNueva     INT NOT NULL);
+    
     BEGIN TRY
         -- Lectura preliminar: la propiedad se revalida bajo bloqueo.
         SELECT @IDCarrito = IDCarrito
@@ -1039,10 +1047,13 @@ BEGIN
                    OR @TotalLinea <> @SubtotalLinea
                     THROW 51750, N'Importes de cotizacion inconsistentes.', 1;
                 
+                DELETE @SaldosVenta;
+                
                 UPDATE dbo.InventarioPorUbicacion
                 SET ExistenciaFisica   = ExistenciaFisica - @Cantidad,
                     CantidadReservada  = CantidadReservada - @Cantidad,
                     FechaActualizacion = @Ahora
+                OUTPUT deleted.ExistenciaFisica, deleted.CantidadReservada, inserted.ExistenciaFisica, inserted.CantidadReservada INTO @SaldosVenta (ExistenciaAnterior, ReservadaAnterior, ExistenciaNueva, ReservadaNueva)
                 WHERE IDInventarioPorUbicacion = @IDInventario
                       AND ExistenciaFisica >= @Cantidad
                       AND CantidadReservada >= @Cantidad;
@@ -1077,6 +1088,8 @@ BEGIN
                 )
                 VALUES                               (@IDInventario, @IDUsuario, @IDDetallePedido, 'SALIDA_VENTA', -@Cantidad, N'Venta confirmada');
                 
+                SET @IDMovimientoInventario = CONVERT (BIGINT, SCOPE_IDENTITY());
+                
                 INSERT INTO dbo.Bitacora (
                     IDUsuario,
                     Modulo,
@@ -1086,10 +1099,22 @@ BEGIN
                     ValorAnterior,
                     ValorNuevo
                 )
-                VALUES                   (@IDUsuario, 'INVENTARIO', 'InventarioPorUbicacion', @IDInventario, 'SALIDA_VENTA', NULL, (SELECT @IDPedido AS IDPedido,
-                                                                                                                                           @IDVariante AS IDVariante,
-                                                                                                                                           @Cantidad AS Cantidad
-                                                                                                                                    FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
+                SELECT @IDUsuario,
+                       'INVENTARIO',
+                       'InventarioPorUbicacion',
+                       @IDInventario,
+                       'SALIDA_VENTA',
+                       (SELECT s.ExistenciaAnterior AS ExistenciaFisica,
+                               s.ReservadaAnterior AS CantidadReservada
+                        FOR JSON PATH, WITHOUT_ARRAY_WRAPPER),
+                       (SELECT s.ExistenciaNueva AS ExistenciaFisica,
+                               s.ReservadaNueva AS CantidadReservada,
+                               @IDPedido AS IDPedido,
+                               @IDVariante AS IDVariante,
+                               @Cantidad AS Cantidad,
+                               @IDMovimientoInventario AS IDMovimientoInventario
+                        FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
+                FROM @SaldosVenta AS s;
                 
                 UPDATE dbo.ReservaInventario
                 SET Estado          = 'CONSUMIDA',
@@ -1139,6 +1164,21 @@ BEGIN
             Motivo
         )
         VALUES                                (@IDPedido, NULL, @IDEstadoPagado, @IDUsuario, N'Pedido creado con pago confirmado');
+        
+        INSERT INTO dbo.Bitacora (
+            IDUsuario,
+            Modulo,
+            Entidad,
+            IDEntidad,
+            Accion,
+            ValorAnterior,
+            ValorNuevo
+        )
+        VALUES                   (@IDUsuario, 'PEDIDOS', 'Pedido', @IDPedido, 'CREAR', NULL, (SELECT @IDPedido AS IDPedido,
+                                                                                                     @IDCheckout AS IDCheckout,
+                                                                                                     'PAGADO' AS Estado,
+                                                                                                     @Total AS Total
+                                                                                              FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));
         
         UPDATE dbo.Checkout
         SET Estado          = 'CONFIRMADO',

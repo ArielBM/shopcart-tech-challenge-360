@@ -1,7 +1,8 @@
 /*
  ShopCart | 016_SP_Bitacora.sql
  Crea: SP_Bitacora_Consultar.
- Consulta paginada de auditoria, con filtro por modulo.
+ Consulta paginada consistente de auditoría,
+ con filtro opcional por módulo.
 */
 USE ShopCartDB;
 
@@ -27,23 +28,40 @@ BEGIN
     
     DECLARE @Offset AS BIGINT = (CONVERT (BIGINT, @Pagina) - 1) * @TamanoPagina;
     
-    SELECT @TotalRegistros = COUNT_BIG(*)
+    -- Fijar el conjunto de registros de esta consulta.
+    -- No se copian los snapshots JSON a la tabla temporal.
+    CREATE TABLE #BitacoraFiltrada (
+        IDBitacora  BIGINT       NOT NULL PRIMARY KEY,
+        FechaAccion DATETIME2(3) NOT NULL
+    );
+    
+    INSERT INTO #BitacoraFiltrada (
+        IDBitacora,
+        FechaAccion
+    )
+    SELECT IDBitacora,
+           FechaAccion
     FROM dbo.Bitacora
     WHERE @Modulo IS NULL
           OR Modulo = @Modulo;
     
-    SELECT IDBitacora,
-           IDUsuario,
-           Modulo,
-           Entidad,
-           IDEntidad,
-           Accion,
-           ValorAnterior,
-           ValorNuevo,
-           FechaAccion
-    FROM dbo.Bitacora
-    WHERE @Modulo IS NULL
-          OR Modulo = @Modulo
-    ORDER BY FechaAccion DESC, IDBitacora DESC
+    -- Total y página provienen del mismo conjunto fijo.
+    SELECT @TotalRegistros = COUNT_BIG(*)
+    FROM #BitacoraFiltrada;
+    
+    SELECT b.IDBitacora,
+           b.IDUsuario,
+           b.Modulo,
+           b.Entidad,
+           b.IDEntidad,
+           b.Accion,
+           b.ValorAnterior,
+           b.ValorNuevo,
+           b.FechaAccion
+    FROM #BitacoraFiltrada AS f
+         INNER JOIN
+         dbo.Bitacora AS b
+         ON b.IDBitacora = f.IDBitacora
+    ORDER BY f.FechaAccion DESC, f.IDBitacora DESC
     OFFSET @Offset ROWS FETCH NEXT @TamanoPagina ROWS ONLY;
 END
