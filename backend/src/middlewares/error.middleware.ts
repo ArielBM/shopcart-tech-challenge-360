@@ -39,7 +39,6 @@ const sqlErrorResponses: Readonly<Partial<Record<number, HttpErrorResponse>>> =
       code: "CATEGORY_NOT_FOUND",
       message: "La categoría solicitada no existe.",
     },
-
     // Catálogo: productos.
     51201: {
       status: 400,
@@ -72,7 +71,6 @@ const sqlErrorResponses: Readonly<Partial<Record<number, HttpErrorResponse>>> =
       code: "INVALID_PRODUCT_STATUS",
       message: "El estado del producto es obligatorio.",
     },
-
     // Inventario.
     51500: invalidInventoryQuantityError,
     51501: {
@@ -123,7 +121,6 @@ const sqlErrorResponses: Readonly<Partial<Record<number, HttpErrorResponse>>> =
       code: "INVALID_DATE_RANGE",
       message: "El rango de fechas no es válido.",
     },
-
     // Carrito.
     51600: {
       status: 400,
@@ -180,7 +177,6 @@ const sqlErrorResponses: Readonly<Partial<Record<number, HttpErrorResponse>>> =
       code: "INVALID_CART_VARIANT",
       message: "El identificador de variante no es válido.",
     },
-
     // Checkout: inicio y reservas.
     51700: {
       status: 400,
@@ -242,7 +238,6 @@ const sqlErrorResponses: Readonly<Partial<Record<number, HttpErrorResponse>>> =
       code: "INSUFFICIENT_STOCK",
       message: "No hay existencias suficientes para completar la compra.",
     },
-
     // Checkout: cancelación.
     51730: {
       status: 400,
@@ -293,6 +288,39 @@ const sqlErrorResponses: Readonly<Partial<Record<number, HttpErrorResponse>>> =
       status: 409,
       code: "CHECKOUT_STATE_CONFLICT",
       message: "El checkout cambió de estado.",
+    },
+    // Direcciones.
+    51800: {
+      status: 400,
+      code: "INVALID_ADDRESS_CUSTOMER",
+      message: "El identificador del cliente no es válido.",
+    },
+    51801: {
+      status: 400,
+      code: "INVALID_ADDRESS_DATA",
+      message: "Los campos obligatorios de la dirección no son válidos.",
+    },
+    51802: {
+      status: 403,
+      code: "ADDRESS_CUSTOMER_UNAVAILABLE",
+      message: "El cliente no está autorizado para registrar direcciones.",
+    },
+    51712: {
+      status: 409,
+      code: "CHECKOUT_EXPIRATION_PENDING",
+      message:
+        "La reserva anterior venció. Intenta nuevamente en unos segundos.",
+    },
+    51713: {
+      status: 422,
+      code: "CHECKOUT_AMOUNT_OUT_OF_RANGE",
+      message: "El importe de un producto excede el límite permitido.",
+    },
+    51611: {
+      status: 409,
+      code: "CART_CHECKOUT_ACTIVE",
+      message:
+        "No puedes modificar el carrito mientras exista un checkout pendiente. Cancélalo o espera a que expire.",
     },
   };
 

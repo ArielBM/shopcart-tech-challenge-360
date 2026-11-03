@@ -6,6 +6,7 @@ import type {
   CancelCheckoutRecord,
   StartCheckoutInput,
   CancelCheckoutInput,
+  ExpiredCheckoutsRecord,
 } from "./checkout.types";
 
 export async function startCheckout({
@@ -50,4 +51,21 @@ export async function cancelCheckout({
   }
 
   return checkout;
+}
+
+export async function expireCheckoutReservations(limit = 50): Promise<number> {
+  const pool = await getConnection();
+
+  const result = await pool
+    .request()
+    .input("Limite", sql.Int, limit)
+    .execute<ExpiredCheckoutsRecord>("dbo.SP_Checkout_ExpirarReservas");
+
+  const record = result.recordset[0];
+
+  if (!record) {
+    throw new Error("La expiración de reservas no devolvió un resultado.");
+  }
+
+  return record.CheckoutsExpirados;
 }

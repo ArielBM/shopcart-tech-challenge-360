@@ -251,6 +251,7 @@ BEGIN
     WHERE rt.IDRefreshToken = @IDNuevo;
 END
 
+
 GO
 
 CREATE OR ALTER PROCEDURE dbo.SP_Auth_RevocarSesion
@@ -258,49 +259,48 @@ CREATE OR ALTER PROCEDURE dbo.SP_Auth_RevocarSesion
 AS
 BEGIN
     SET NOCOUNT ON;
+    
     SET XACT_ABORT ON;
-
-    IF @TokenHash IS NULL OR DATALENGTH(@TokenHash) <> 32
+    
+    IF @TokenHash IS NULL
+       OR DATALENGTH(@TokenHash) <> 32
         THROW 51021, N'Hash de token inválido.', 1;
-
-    DECLARE @IDFamilia UNIQUEIDENTIFIER;
-    DECLARE @Recurso NVARCHAR(255);
-    DECLARE @ResultadoBloqueo INT;
-
+    
+    DECLARE @IDFamilia AS UNIQUEIDENTIFIER;
+    
+    DECLARE @Recurso AS NVARCHAR(255);
+    
+    DECLARE @ResultadoBloqueo AS INT;
+    
     SELECT @IDFamilia = IDFamilia
     FROM dbo.RefreshToken
     WHERE TokenHash = @TokenHash;
-
+    
     -- Logout repetido o token desconocido: no hay nada que revocar.
     IF @IDFamilia IS NULL
         RETURN;
-
-    SET @Recurso = N'ShopCart:Refresh:'
-        + CONVERT(NVARCHAR(36), @IDFamilia);
-
+    
+    SET @Recurso = N'ShopCart:Refresh:' + CONVERT (NVARCHAR(36), @IDFamilia);
+    
     BEGIN TRY
         BEGIN TRANSACTION;
-
-        EXEC @ResultadoBloqueo = sys.sp_getapplock
-            @Resource = @Recurso,
-            @LockMode = 'Exclusive',
-            @LockOwner = 'Transaction',
-            @LockTimeout = 10000;
-
+        
+        EXECUTE @ResultadoBloqueo = sys.sp_getapplock @Resource = @Recurso, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 10000;
+        
         IF @ResultadoBloqueo < 0
             THROW 51026, N'No se pudo bloquear la sesión.', 1;
-
+        
         UPDATE dbo.RefreshToken
         SET FechaRevocacion = SYSUTCDATETIME()
         WHERE IDFamilia = @IDFamilia
-          AND FechaRevocacion IS NULL;
-
+              AND FechaRevocacion IS NULL;
+        
         COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0
             ROLLBACK;
-
+        
         THROW;
     END CATCH
 END

@@ -82,6 +82,14 @@ BEGIN
                 SET @IDCarrito = CONVERT (BIGINT, SCOPE_IDENTITY());
             END
         
+        -- Impedir modificaciones mientras el checkout
+        -- mantiene una reserva de inventario pendiente.
+        IF EXISTS (SELECT 1
+                   FROM dbo.Checkout WITH (UPDLOCK, HOLDLOCK)
+                   WHERE IDCarrito = @IDCarrito
+                         AND Estado = 'ACTIVO')
+            THROW 51611, N'No se puede modificar el carrito mientras exista un checkout pendiente.', 1;
+        
         -- Solo permitir variantes comercializables.
         IF NOT EXISTS (SELECT 1
                        FROM dbo.Variante AS v
@@ -305,6 +313,14 @@ BEGIN
         IF @IDCarrito IS NULL
             THROW 51608, N'No existe un carrito activo.', 1;
         
+        -- Impedir modificaciones mientras el checkout
+        -- mantiene una reserva de inventario pendiente.
+        IF EXISTS (SELECT 1
+                   FROM dbo.Checkout WITH (UPDLOCK, HOLDLOCK)
+                   WHERE IDCarrito = @IDCarrito
+                         AND Estado = 'ACTIVO')
+            THROW 51611, N'No se puede modificar el carrito mientras exista un checkout pendiente.', 1;
+        
         -- Verificar que la variante esté en el carrito.
         SELECT @IDDetalleCarrito = IDDetalleCarrito
         FROM dbo.DetalleCarrito WITH (UPDLOCK, HOLDLOCK)
@@ -437,6 +453,14 @@ BEGIN
         
         IF @IDCarrito IS NULL
             THROW 51608, N'No existe un carrito activo.', 1;
+        
+        -- Impedir modificaciones mientras el checkout
+        -- mantiene una reserva de inventario pendiente.
+        IF EXISTS (SELECT 1
+                   FROM dbo.Checkout WITH (UPDLOCK, HOLDLOCK)
+                   WHERE IDCarrito = @IDCarrito
+                         AND Estado = 'ACTIVO')
+            THROW 51611, N'No se puede modificar el carrito mientras exista un checkout pendiente.', 1;
         
         -- Buscar la línea solicitada.
         SELECT @IDDetalleCarrito = IDDetalleCarrito

@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { authRouter } from "../modules/auth/auth.routes";
-import { categoriesRouter } from "../modules/catalog/categories.routes";
-import { productsRouter } from "../modules/catalog/products.routes";
+import { categoriesRouter } from "../modules/categories/categories.routes";
+import { productsRouter } from "../modules/products/products.routes";
 import { inventoryRouter } from "../modules/inventory/inventory.routes";
 import { cartRouter } from "../modules/cart/cart.routes";
 import { checkoutRouter } from "../modules/checkout/checkout.routes";
+import { addressesRouter } from "../modules/addresses/addresses.routes";
 
 export const apiRouter = Router();
 
@@ -18,3 +19,4 @@ apiRouter.use("/products", productsRouter);
 apiRouter.use("/inventory", inventoryRouter);
 apiRouter.use("/cart", cartRouter);
 apiRouter.use("/checkout", checkoutRouter);
+apiRouter.use("/addresses", addressesRouter);

@@ -4,7 +4,7 @@ import {
   CategoryData,
   CategoryRecord,
   UpdateCategoryData,
-} from "./catalog.types";
+} from "./categories.types";
 
 export async function createCategory(
   data: CategoryData,

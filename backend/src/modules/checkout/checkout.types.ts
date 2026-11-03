@@ -21,3 +21,7 @@ export interface CancelCheckoutInput {
   idUsuario: number;
   idCheckout: string;
 }
+
+export interface ExpiredCheckoutsRecord {
+  CheckoutsExpirados: number;
+}

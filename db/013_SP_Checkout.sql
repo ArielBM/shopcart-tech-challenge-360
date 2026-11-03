@@ -4,6 +4,7 @@
    - SP_Checkout_ExpirarReservas
    - SP_Checkout_Cancelar
    - SP_Checkout_ConfirmarPago
+   - SP_Checkout_DetalleCheckout 
 */
 USE ShopCartDB;
 
@@ -56,10 +57,22 @@ BEGIN
     
     DECLARE @Disponible AS BIGINT;
     
+    -- Datos comerciales congelados.
+    DECLARE @Precio AS DECIMAL(18,2);
+    
+    DECLARE @SKU AS VARCHAR(64);
+    
+    DECLARE @Nombre AS NVARCHAR(250);
+    
+    DECLARE @SubtotalLineaAmplio AS DECIMAL(38,2);
+    
+    DECLARE @SubtotalLinea AS DECIMAL(18,2);
+    
     BEGIN TRY
         BEGIN TRANSACTION;
         
-        -- Una clave se procesa por una sola transaccion, incluso entre clientes.
+        -- Una clave se procesa por una sola transacción,
+        -- incluso cuando pertenece a clientes diferentes.
         SET @Recurso = CONCAT(N'Checkout:Clave:', CONVERT (VARCHAR(36), @ClaveInicio));
         
         EXECUTE @ResultadoBloqueo = sys.sp_getapplock @Resource = @Recurso, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 10000;
@@ -67,6 +80,7 @@ BEGIN
         IF @ResultadoBloqueo < 0
             THROW 51702, N'No se pudo bloquear el inicio de checkout.', 1;
         
+        -- Idempotencia: devolver el checkout existente.
         SELECT @IDCheckout = IDCheckout,
                @PropietarioExistente = IDUsuario,
                @HuellaExistente = HuellaSolicitud,
@@ -91,7 +105,8 @@ BEGIN
                 RETURN;
             END
         
-        -- Mismo recurso que usan las operaciones de carrito de RF-04.
+        -- Mismo recurso utilizado por las operaciones
+        -- del carrito del módulo RF-04.
         SET @Recurso = CONCAT(N'Carrito:Usuario:', @IDUsuario);
         
         EXECUTE @ResultadoBloqueo = sys.sp_getapplock @Resource = @Recurso, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 10000;
@@ -113,14 +128,28 @@ BEGIN
                        WHERE IDCarrito = @IDCarrito)
             THROW 51706, N'El carrito esta vacio.', 1;
         
-        -- No reutilizar stock mientras un checkout anterior siga ACTIVO.
-        -- La liberacion/expiracion transaccional se implementara por separado.
+        -- Capturar un único instante para verificar
+        -- la vigencia de checkouts anteriores.
+        SET @Ahora = SYSUTCDATETIME();
+        
+        -- No permitir otro checkout si existe uno vigente.
         IF EXISTS (SELECT 1
                    FROM dbo.Checkout WITH (UPDLOCK, HOLDLOCK)
                    WHERE IDCarrito = @IDCarrito
-                         AND Estado = 'ACTIVO')
-            THROW 51707, N'El carrito ya tiene un checkout pendiente de resolucion.', 1;
+                         AND Estado = 'ACTIVO'
+                         AND FechaExpiracion > @Ahora)
+            THROW 51707, N'El carrito ya tiene un checkout activo.', 1;
         
+        -- Una reserva vencida debe liberarse antes
+        -- de iniciar otra sobre el mismo carrito.
+        IF EXISTS (SELECT 1
+                   FROM dbo.Checkout WITH (UPDLOCK, HOLDLOCK)
+                   WHERE IDCarrito = @IDCarrito
+                         AND Estado = 'ACTIVO'
+                         AND FechaExpiracion <= @Ahora)
+            THROW 51712, N'La reserva anterior vencio y esta pendiente de liberacion. Intenta nuevamente.', 1;
+        
+        -- Localizar la bodega central.
         SELECT @IDUbicacion = IDUbicacion
         FROM dbo.Ubicacion
         WHERE Codigo = 'BOD-CENTRAL'
@@ -129,8 +158,8 @@ BEGIN
         IF @IDUbicacion IS NULL
             THROW 51708, N'La bodega central no esta disponible.', 1;
         
-        -- El carrito queda inmovilizado por el applock durante toda la reserva.
-        -- Recorrer variantes en orden fijo evita inversiones de bloqueo entre checkouts.
+        -- Recorrer variantes en orden fijo para
+        -- reducir el riesgo de deadlocks.
         DECLARE Lineas CURSOR LOCAL FAST_FORWARD
             FOR SELECT IDVariante,
                        Cantidad
@@ -138,6 +167,8 @@ BEGIN
                 WHERE IDCarrito = @IDCarrito
                 ORDER BY IDVariante;
         
+        -- Capturar el instante real de creación.
+        -- La reserva tiene una vigencia de 15 minutos.
         SET @Ahora = SYSUTCDATETIME();
         
         SET @FechaExpiracion = DATEADD(MINUTE, 15, @Ahora);
@@ -161,20 +192,35 @@ BEGIN
         
         WHILE @@FETCH_STATUS = 0
             BEGIN
-                IF NOT EXISTS (SELECT 1
-                               FROM dbo.Variante AS v
-                                    INNER JOIN
-                                    dbo.Producto AS p
-                                    ON p.IDProducto = v.IDProducto
-                                    INNER JOIN
-                                    dbo.Categoria AS c
-                                    ON c.IDCategoria = p.IDCategoria
-                               WHERE v.IDVariante = @IDVariante
-                                     AND v.Activa = 1
-                                     AND p.Activo = 1
-                                     AND c.Activa = 1)
+                -- Comprobar disponibilidad comercial y
+                -- obtener los datos que deben congelarse.
+                SET @Precio = NULL;
+                
+                SET @SKU = NULL;
+                
+                SET @Nombre = NULL;
+                
+                SELECT @Precio = v.PrecioActual,
+                       @SKU = v.SKU,
+                       @Nombre = p.Nombre
+                FROM dbo.Variante AS v WITH (UPDLOCK, HOLDLOCK)
+                     INNER JOIN
+                     dbo.Producto AS p
+                     ON p.IDProducto = v.IDProducto
+                     INNER JOIN
+                     dbo.Categoria AS c
+                     ON c.IDCategoria = p.IDCategoria
+                WHERE v.IDVariante = @IDVariante
+                      AND v.Activa = 1
+                      AND p.Activo = 1
+                      AND c.Activa = 1;
+                
+                IF @Precio IS NULL
+                   OR @SKU IS NULL
+                   OR @Nombre IS NULL
                     THROW 51709, N'Una variante del carrito ya no esta disponible.', 1;
                 
+                -- Bloqueo exclusivo del inventario.
                 SET @Recurso = CONCAT(N'Inventario:', @IDVariante, N':', @IDUbicacion);
                 
                 EXECUTE @ResultadoBloqueo = sys.sp_getapplock @Resource = @Recurso, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 10000;
@@ -192,15 +238,30 @@ BEGIN
                 WHERE IDVariante = @IDVariante
                       AND IDUbicacion = @IDUbicacion;
                 
+                -- Evitar sobreventa.
                 IF @IDInventario IS NULL
                    OR @Disponible < @Cantidad
                     THROW 51711, N'Existencia insuficiente para una variante del carrito.', 1;
                 
+                -- Calcular el importe con precisión decimal.
+                SET @SubtotalLineaAmplio = CONVERT (DECIMAL(38,2), CONVERT (DECIMAL(18,2), @Cantidad) * @Precio);
+                
+                IF @SubtotalLineaAmplio > 9999999999999999.99
+                    THROW 51713, N'El importe de la linea excede el limite permitido.', 1;
+                
+                SET @SubtotalLinea = CONVERT (DECIMAL(18,2), @SubtotalLineaAmplio);
+                
+                -- Incrementar inventario reservado.
                 UPDATE dbo.InventarioPorUbicacion
                 SET CantidadReservada  = CantidadReservada + @Cantidad,
                     FechaActualizacion = @Ahora
-                WHERE IDInventarioPorUbicacion = @IDInventario;
+                WHERE IDInventarioPorUbicacion = @IDInventario
+                      AND ExistenciaFisica - CantidadReservada >= @Cantidad;
                 
+                IF @@ROWCOUNT <> 1
+                    THROW 51711, N'Existencia insuficiente para una variante del carrito.', 1;
+                
+                -- Registrar la reserva individual.
                 INSERT INTO dbo.ReservaInventario (
                     IDCheckout,
                     IDInventarioPorUbicacion,
@@ -210,6 +271,21 @@ BEGIN
                     FechaExpiracion
                 )
                 VALUES                            (@IDCheckout, @IDInventario, @Cantidad, 'ACTIVA', @Ahora, @FechaExpiracion);
+                
+                -- Congelar las condiciones comerciales.
+                -- Descuento = 0 hasta integrar RF-05.
+                INSERT INTO dbo.DetalleCheckout (
+                    IDCheckout,
+                    IDVariante,
+                    SKUHistorico,
+                    NombreHistorico,
+                    Cantidad,
+                    PrecioUnitario,
+                    Subtotal,
+                    Descuento,
+                    Total
+                )
+                VALUES                          (@IDCheckout, @IDVariante, @SKU, @Nombre, @Cantidad, @Precio, @SubtotalLinea, 0, @SubtotalLinea);
                 
                 FETCH NEXT FROM Lineas INTO @IDVariante, @Cantidad;
             END
@@ -797,43 +873,22 @@ BEGIN
                        WHERE IDCarrito = @IDCarrito)
             THROW 51749, N'Carrito vacio.', 1;
         
-        -- No confiar en importes enviados por el cliente.
-        SELECT @SubtotalAmplio = SUM(CONVERT (DECIMAL(38,2), d.Cantidad * v.PrecioActual))
-        FROM dbo.DetalleCarrito AS d
-             INNER JOIN
-             dbo.Variante AS v
-             ON v.IDVariante = d.IDVariante
-             INNER JOIN
-             dbo.Producto AS p
-             ON p.IDProducto = v.IDProducto
-             INNER JOIN
-             dbo.Categoria AS c
-             ON c.IDCategoria = p.IDCategoria
-        WHERE d.IDCarrito = @IDCarrito
-              AND v.Activa = 1
-              AND p.Activo = 1
-              AND c.Activa = 1;
+        -- Utilizar exclusivamente los importes congelados
+        -- al iniciar el checkout.
+        SELECT @SubtotalAmplio = SUM(CONVERT (DECIMAL(38,2), d.Subtotal))
+        FROM dbo.DetalleCheckout AS d
+        WHERE d.IDCheckout = @IDCheckout;
         
         IF @SubtotalAmplio IS NULL
            OR @SubtotalAmplio > 9999999999999999.99
            OR @SubtotalAmplio + @CostoEnvio > 9999999999999999.99
            OR EXISTS (SELECT 1
-                      FROM dbo.DetalleCarrito AS d
-                           LEFT OUTER JOIN
-                           dbo.Variante AS v
-                           ON v.IDVariante = d.IDVariante
-                           LEFT OUTER JOIN
-                           dbo.Producto AS p
-                           ON p.IDProducto = v.IDProducto
-                           LEFT OUTER JOIN
-                           dbo.Categoria AS c
-                           ON c.IDCategoria = p.IDCategoria
-                      WHERE d.IDCarrito = @IDCarrito
-                            AND (v.Activa <> 1
-                                 OR p.Activo <> 1
-                                 OR c.Activa <> 1))
-            THROW 51750, N'Importes o articulos no validos.', 1;
+                      FROM dbo.DetalleCheckout
+                      WHERE IDCheckout = @IDCheckout
+                            AND Descuento <> 0)
+            THROW 51750, N'Importes congelados no validos.', 1;
         
+        -- Descuentos y cupones pendientes de RF-05.
         SET @Subtotal = CONVERT (DECIMAL(18,2), @SubtotalAmplio);
         
         SET @Total = CONVERT (DECIMAL(18,2), @SubtotalAmplio + @CostoEnvio);
@@ -884,51 +939,61 @@ BEGIN
         
         SET @IDPedido = CONVERT (BIGINT, SCOPE_IDENTITY());
         
-        -- Las reservas se consumen con los mismos applocks que usa Inventario.
+        -- Procesar las reservas con sus datos comerciales congelados.
         DECLARE Lineas CURSOR LOCAL FAST_FORWARD
             FOR SELECT r.IDReservaInventario,
                        r.IDInventarioPorUbicacion,
                        i.IDVariante,
                        i.IDUbicacion,
                        r.Cantidad,
-                       v.PrecioActual,
-                       v.SKU,
-                       p.Nombre
+                       d.PrecioUnitario,
+                       d.SKUHistorico,
+                       d.NombreHistorico
                 FROM dbo.ReservaInventario AS r
                      INNER JOIN
                      dbo.InventarioPorUbicacion AS i
                      ON i.IDInventarioPorUbicacion = r.IDInventarioPorUbicacion
                      INNER JOIN
-                     dbo.Variante AS v
-                     ON v.IDVariante = i.IDVariante
-                     INNER JOIN
-                     dbo.Producto AS p
-                     ON p.IDProducto = v.IDProducto
+                     dbo.DetalleCheckout AS d
+                     ON d.IDCheckout = r.IDCheckout
+                        AND d.IDVariante = i.IDVariante
+                        AND d.Cantidad = r.Cantidad
                 WHERE r.IDCheckout = @IDCheckout
                       AND r.Estado = 'ACTIVA'
                 ORDER BY i.IDVariante, i.IDUbicacion;
         
-        -- Cada línea del carrito debe tener reserva equivalente y vigente.
+        -- Cada línea del carrito debe coincidir con
+        -- su cotización congelada y reserva vigente.
         IF EXISTS (SELECT 1
-                   FROM dbo.DetalleCarrito AS d
-                   WHERE d.IDCarrito = @IDCarrito
+                   FROM dbo.DetalleCarrito AS c
+                   WHERE c.IDCarrito = @IDCarrito
                          AND NOT EXISTS (SELECT 1
-                                         FROM dbo.ReservaInventario AS r
+                                         FROM dbo.DetalleCheckout AS d
+                                              INNER JOIN
+                                              dbo.ReservaInventario AS r
+                                              ON r.IDCheckout = d.IDCheckout
                                               INNER JOIN
                                               dbo.InventarioPorUbicacion AS i
                                               ON i.IDInventarioPorUbicacion = r.IDInventarioPorUbicacion
-                                         WHERE r.IDCheckout = @IDCheckout
-                                               AND r.Estado = 'ACTIVA'
-                                               AND r.FechaExpiracion > @Ahora
+                                         WHERE d.IDCheckout = @IDCheckout
+                                               AND d.IDVariante = c.IDVariante
+                                               AND d.Cantidad = c.Cantidad
                                                AND i.IDVariante = d.IDVariante
-                                               AND r.Cantidad = d.Cantidad))
+                                               AND r.Cantidad = d.Cantidad
+                                               AND r.Estado = 'ACTIVA'
+                                               AND r.FechaExpiracion > @Ahora))
+           OR (SELECT COUNT_BIG(*)
+               FROM dbo.DetalleCheckout
+               WHERE IDCheckout = @IDCheckout) <> (SELECT COUNT_BIG(*)
+                                                   FROM dbo.DetalleCarrito
+                                                   WHERE IDCarrito = @IDCarrito)
            OR (SELECT COUNT_BIG(*)
                FROM dbo.ReservaInventario
                WHERE IDCheckout = @IDCheckout
                      AND Estado = 'ACTIVA') <> (SELECT COUNT_BIG(*)
                                                 FROM dbo.DetalleCarrito
                                                 WHERE IDCarrito = @IDCarrito)
-            THROW 51751, N'Reservas incompletas o modificadas.', 1;
+            THROW 51751, N'La cotizacion y las reservas no coinciden.', 1;
         
         OPEN Lineas;
         
@@ -1086,3 +1151,32 @@ BEGIN
         THROW;
     END CATCH
 END
+
+
+GO
+
+IF OBJECT_ID(N'dbo.DetalleCheckout', N'U') IS NULL
+    BEGIN
+        CREATE TABLE dbo.DetalleCheckout (
+            IDDetalleCheckout BIGINT        IDENTITY (1, 1) NOT NULL,
+            IDCheckout        BIGINT        NOT NULL,
+            IDVariante        INT           NOT NULL,
+            SKUHistorico      VARCHAR(64)   NOT NULL,
+            NombreHistorico   NVARCHAR(250) NOT NULL,
+            Cantidad          INT           NOT NULL,
+            PrecioUnitario    DECIMAL(18,2) NOT NULL,
+            Subtotal          DECIMAL(18,2) NOT NULL,
+            Descuento         DECIMAL(18,2) NOT NULL,
+            Total             DECIMAL(18,2) NOT NULL,
+            CONSTRAINT PK_DetalleCheckout PRIMARY KEY (IDDetalleCheckout),
+            CONSTRAINT UQ_DetalleCheckout_Checkout_Variante UNIQUE (IDCheckout, IDVariante),
+            CONSTRAINT FK_DetalleCheckout_Checkout FOREIGN KEY (IDCheckout) REFERENCES dbo.Checkout (IDCheckout),
+            CONSTRAINT FK_DetalleCheckout_Variante FOREIGN KEY (IDVariante) REFERENCES dbo.Variante (IDVariante),
+            CONSTRAINT CK_DetalleCheckout_Importes CHECK (Cantidad > 0
+                                                          AND PrecioUnitario >= 0
+                                                          AND Subtotal = Cantidad * PrecioUnitario
+                                                          AND Descuento >= 0
+                                                          AND Descuento <= Subtotal
+                                                          AND Total = Subtotal - Descuento)
+        );
+    END

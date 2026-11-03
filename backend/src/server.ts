@@ -1,6 +1,7 @@
 import { app } from "./app";
 import { env } from "./config/env";
 import { getConnection } from "./database/connection";
+import { startCheckoutExpiration } from "./modules/checkout/checkout.expiration";
 
 async function start(): Promise<void> {
   try {
@@ -12,6 +13,8 @@ async function start(): Promise<void> {
       console.log(
         `ShopCart(${env.nodeEnv}) API: http://localhost:${String(env.port)}`,
       );
+
+      startCheckoutExpiration();
     });
   } catch (error: unknown) {
     console.error("Error al iniciar ShopCart:", error);

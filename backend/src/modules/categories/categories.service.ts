@@ -4,7 +4,7 @@ import {
   updateCategory,
 } from "./categories.repository";
 
-import { CategoryRecord } from "./catalog.types";
+import { CategoryRecord } from "./categories.types";
 
 import { CreateCategoryInput, UpdateCategoryInput } from "./categories.schemas";
 
