@@ -837,7 +837,6 @@ BEGIN
                                   WHERE IDPedido = @IDPedido
                                         AND IDCheckout = @IDCheckout
                                         AND IDUsuario = @IDUsuario
-                                        AND Estado = 'PAGADO'
                                         AND Total = @MontoIntento)
                     THROW 51760, N'El pago confirmado no tiene un pedido valido.', 1;
                 

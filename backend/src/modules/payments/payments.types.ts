@@ -17,7 +17,7 @@ export interface PaymentAttemptRecord {
   IDIntentoPago: string | number;
   IDCheckout: string | number;
   Estado: string;
-  Monto: number | string;
+  Monto: string;
   Reutilizado: boolean;
 }
 

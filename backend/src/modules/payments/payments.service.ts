@@ -43,7 +43,7 @@ export async function processPaymentService(
         idIntentoPago: String(intento.IDIntentoPago),
         idCheckout: String(intento.IDCheckout),
         estado: "FALLIDO",
-        monto: String(intento.Monto),
+        monto: intento.Monto,
         reutilizado: true,
       },
     };
@@ -74,7 +74,7 @@ export async function processPaymentService(
       idIntentoPago: String(resultado.IDIntentoPago),
       idCheckout,
       estado: resultado.Estado,
-      monto: String(intento.Monto),
+      monto: intento.Monto,
       reutilizado: resultado.Reutilizado,
     },
   };
