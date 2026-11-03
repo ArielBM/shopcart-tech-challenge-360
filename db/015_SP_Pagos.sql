@@ -113,7 +113,7 @@ BEGIN
                 SELECT @IDIntentoPago AS IDIntentoPago,
                        @IDCheckout AS IDCheckout,
                        @EstadoIntento AS Estado,
-                       @MontoExistente AS Monto,
+                       CONVERT (VARCHAR(30), @MontoExistente) AS Monto,
                        CAST (1 AS BIT) AS Reutilizado;
                 
                 RETURN;
@@ -215,7 +215,7 @@ BEGIN
         SELECT @IDIntentoPago AS IDIntentoPago,
                @IDCheckout AS IDCheckout,
                CAST ('PENDIENTE' AS VARCHAR(20)) AS Estado,
-               @Monto AS Monto,
+               CONVERT(VARCHAR(30), @Monto) AS Monto,
                CAST (0 AS BIT) AS Reutilizado;
     END TRY
     BEGIN CATCH
