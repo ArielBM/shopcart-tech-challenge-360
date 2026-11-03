@@ -1,15 +1,234 @@
-import type { ErrorRequestHandler } from "express";
+import type { ErrorRequestHandler, Response } from "express";
 import { z, ZodError } from "zod";
 
-interface SqlError {
-  number?: number;
-  message?: string;
-  originalError?: {
-    info?: {
-      number?: number;
-      message?: string;
-    };
+interface HttpErrorResponse {
+  readonly status: number;
+  readonly code: string;
+  readonly message: string;
+}
+
+interface SqlErrorDetails {
+  number: number | undefined;
+  message: string;
+}
+
+const invalidRefreshTokenError: HttpErrorResponse = {
+  status: 401,
+  code: "INVALID_REFRESH_TOKEN",
+  message: "La sesión expiró o dejó de ser válida.",
+};
+
+const invalidInventoryQuantityError: HttpErrorResponse = {
+  status: 400,
+  code: "INVALID_INVENTORY_QUANTITY",
+  message: "La cantidad de inventario no es válida.",
+};
+
+const invalidInventoryFilterError: HttpErrorResponse = {
+  status: 400,
+  code: "INVALID_INVENTORY_FILTER",
+  message: "El filtro de inventario no es válido.",
+};
+
+// Traducciones de THROW a respuestas públicas, agrupadas por módulo.
+const sqlErrorResponses: Readonly<Partial<Record<number, HttpErrorResponse>>> = {
+  // Catálogo: categorías.
+  51101: {
+    status: 404,
+    code: "CATEGORY_NOT_FOUND",
+    message: "La categoría solicitada no existe.",
+  },
+
+  // Catálogo: productos.
+  51201: {
+    status: 400,
+    code: "INVALID_PRODUCT_CATEGORY",
+    message: "La categoría no existe o está inactiva.",
+  },
+  51202: {
+    status: 404,
+    code: "PRODUCT_NOT_FOUND",
+    message: "El producto solicitado no existe.",
+  },
+  51203: {
+    status: 400,
+    code: "INVALID_PAGINATION",
+    message: "La paginación proporcionada no es válida.",
+  },
+  51204: {
+    status: 400,
+    code: "INVALID_PRICE_RANGE",
+    message: "El formato o rango de precios proporcionado no es válido.",
+  },
+  51205: {
+    status: 400,
+    code: "INVALID_SORT_ORDER",
+    message: "El ordenamiento proporcionado no es válido.",
+  },
+  // Previsto: los SP actuales todavía no lanzan 51206.
+  51206: {
+    status: 400,
+    code: "INVALID_PRODUCT_STATUS",
+    message: "El estado del producto es obligatorio.",
+  },
+
+  // Inventario.
+  51500: invalidInventoryQuantityError,
+  51501: {
+    status: 400,
+    code: "INVENTORY_REASON_REQUIRED",
+    message: "El motivo del movimiento es obligatorio.",
+  },
+  51502: {
+    status: 404,
+    code: "INVENTORY_VARIANT_NOT_FOUND",
+    message: "La variante solicitada no existe.",
+  },
+  51503: {
+    status: 400,
+    code: "INVALID_INVENTORY_LOCATION",
+    message: "La ubicación no existe o está inactiva.",
+  },
+  51504: {
+    status: 409,
+    code: "INVENTORY_LOCK_CONFLICT",
+    message: "El inventario está siendo actualizado. Intenta nuevamente.",
+  },
+  51505: {
+    status: 400,
+    code: "INVENTORY_LIMIT_EXCEEDED",
+    message: "La existencia supera el límite permitido.",
+  },
+  51506: invalidInventoryQuantityError,
+  51507: {
+    status: 404,
+    code: "INVENTORY_NOT_FOUND",
+    message: "No existe inventario para esta variante y ubicación.",
+  },
+  51508: {
+    status: 409,
+    code: "INSUFFICIENT_INVENTORY",
+    message: "El ajuste supera las existencias disponibles.",
+  },
+  51509: invalidInventoryFilterError,
+  51510: invalidInventoryFilterError,
+  51511: {
+    status: 400,
+    code: "INVALID_PAGINATION",
+    message: "La paginación proporcionada no es válida.",
+  },
+  51512: {
+    status: 400,
+    code: "INVALID_DATE_RANGE",
+    message: "El rango de fechas no es válido.",
+  },
+
+  // Carrito.
+  51600: {
+    status: 400,
+    code: "INVALID_CART_QUANTITY",
+    message: "La cantidad debe ser un entero positivo.",
+  },
+  51601: {
+    status: 400,
+    code: "INVALID_CART_OWNER",
+    message: "El propietario del carrito no es válido.",
+  },
+  51602: {
+    status: 409,
+    code: "CART_LOCK_CONFLICT",
+    message: "El carrito está ocupado. Intenta nuevamente.",
+  },
+  51603: {
+    status: 409,
+    code: "CART_VARIANT_UNAVAILABLE",
+    message: "La variante no está disponible para la compra.",
+  },
+  51604: {
+    status: 409,
+    code: "CART_LOCATION_UNAVAILABLE",
+    message: "La bodega central no está disponible.",
+  },
+  51605: {
+    status: 409,
+    code: "CART_INVENTORY_LOCK_CONFLICT",
+    message: "No se pudo consultar el inventario. Intenta nuevamente.",
+  },
+  51606: {
+    status: 409,
+    code: "INSUFFICIENT_STOCK",
+    message: "No hay existencias suficientes para la cantidad solicitada.",
+  },
+  51607: {
+    status: 409,
+    code: "CART_QUANTITY_LIMIT",
+    message: "La cantidad acumulada supera el límite permitido.",
+  },
+  51608: {
+    status: 404,
+    code: "CART_NOT_FOUND",
+    message: "No existe un carrito activo.",
+  },
+  51609: {
+    status: 404,
+    code: "CART_ITEM_NOT_FOUND",
+    message: "La variante no existe en el carrito.",
+  },
+  51610: {
+    status: 400,
+    code: "INVALID_CART_VARIANT",
+    message: "El identificador de variante no es válido.",
+  },
+};
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function getSqlErrorDetails(error: unknown): SqlErrorDetails {
+  if (!isObject(error)) {
+    return { number: undefined, message: "" };
+  }
+
+  const originalError = isObject(error.originalError)
+    ? error.originalError
+    : undefined;
+  const info = isObject(originalError?.info) ? originalError.info : undefined;
+  const number = error.number ?? info?.number;
+  const message = error.message ?? info?.message;
+
+  return {
+    number: typeof number === "number" ? number : undefined,
+    message: typeof message === "string" ? message : "",
   };
+}
+
+function resolveSqlError({
+  number,
+  message,
+}: SqlErrorDetails): HttpErrorResponse | undefined {
+  // Los duplicados ajenos al correo conservan el error genérico.
+  if (
+    (number === 2601 || number === 2627) &&
+    message.includes("UQ_Usuario_Correo")
+  ) {
+    return {
+      status: 409,
+      code: "EMAIL_ALREADY_EXISTS",
+      message: "El correo ya está registrado.",
+    };
+  }
+
+  return number === undefined ? undefined : sqlErrorResponses[number];
+}
+
+function sendErrorResponse(res: Response, error: HttpErrorResponse): void {
+  res.status(error.status).json({
+    error: {
+      code: error.code,
+      message: error.message,
+    },
+  });
 }
 
 export const errorMiddleware: ErrorRequestHandler = (
@@ -18,7 +237,6 @@ export const errorMiddleware: ErrorRequestHandler = (
   res,
   _next,
 ) => {
-  // Zod: datos de entrada que no cumplen el esquema de validación.
   if (error instanceof ZodError) {
     res.status(400).json({
       error: {
@@ -30,7 +248,6 @@ export const errorMiddleware: ErrorRequestHandler = (
     return;
   }
 
-  // Parser de Express: cuerpo JSON malformado (HTTP 400).
   if (
     error instanceof SyntaxError &&
     "status" in error &&
@@ -38,262 +255,39 @@ export const errorMiddleware: ErrorRequestHandler = (
     "type" in error &&
     error.type === "entity.parse.failed"
   ) {
-    res.status(400).json({
-      error: {
-        code: "INVALID_JSON",
-        message: "El cuerpo de la solicitud contiene JSON inválido.",
-      },
+    sendErrorResponse(res, {
+      status: 400,
+      code: "INVALID_JSON",
+      message: "El cuerpo de la solicitud contiene JSON inválido.",
     });
     return;
   }
 
-  // Examina posibles errores del driver SQL; aún no confirma su origen.
-  if (typeof error === "object" && error !== null) {
-    const sqlError = error as SqlError;
-    const number = sqlError.number ?? sqlError.originalError?.info?.number;
-    const message =
-      sqlError.message ?? sqlError.originalError?.info?.message ?? "";
+  const sqlError = getSqlErrorDetails(error);
 
-    // ShopCart (THROW): 51201 = categoría inexistente o inactiva para el producto.
-    if (number === 51201) {
-      res.status(400).json({
-        error: {
-          code: "INVALID_PRODUCT_CATEGORY",
-          message: "La categoría no existe o está inactiva.",
-        },
-      });
-      return;
-    }
+  // La sesión inválida también debe retirar la cookie del navegador.
+  if ([51022, 51023, 51024].includes(sqlError.number ?? -1)) {
+    res.clearCookie("refreshToken", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/api/v1/auth",
+    });
+    sendErrorResponse(res, invalidRefreshTokenError);
+    return;
+  }
 
-    // ShopCart (THROW): 51202 = producto inexistente o no visible en la consulta.
-    if (number === 51202) {
-      res.status(404).json({
-        error: {
-          code: "PRODUCT_NOT_FOUND",
-          message: "El producto solicitado no existe.",
-        },
-      });
-      return;
-    }
+  const sqlErrorResponse = resolveSqlError(sqlError);
 
-    // ShopCart (previsto): 51206 = estado del producto obligatorio.
-    // Los SP actuales del repositorio todavía no lanzan este código.
-    if (number === 51206) {
-      res.status(400).json({
-        error: {
-          code: "INVALID_PRODUCT_STATUS",
-          message: "El estado del producto es obligatorio.",
-        },
-      });
-      return;
-    }
-
-    // ShopCart (THROW): 51101 = categoría inexistente.
-    if (number === 51101) {
-      res.status(404).json({
-        error: {
-          code: "CATEGORY_NOT_FOUND",
-          message: "La categoría solicitada no existe.",
-        },
-      });
-      return;
-    }
-
-    // ShopCart (THROW): 51203 = paginación inválida.
-    if (number === 51203) {
-      res.status(400).json({
-        error: {
-          code: "INVALID_PAGINATION",
-          message: "La paginación proporcionada no es válida.",
-        },
-      });
-      return;
-    }
-
-    // ShopCart (THROW): 51204 = formato o rango de precios inválido.
-    if (number === 51204) {
-      res.status(400).json({
-        error: {
-          code: "INVALID_PRICE_RANGE",
-          message: "El formato o rango de precios proporcionado no es válido.",
-        },
-      });
-      return;
-    }
-
-    // Inventario: cantidad de entrada inválida o ajuste igual a cero.
-    if (number === 51500 || number === 51506) {
-      res.status(400).json({
-        error: {
-          code: "INVALID_INVENTORY_QUANTITY",
-          message: "La cantidad de inventario no es válida.",
-        },
-      });
-      return;
-    }
-
-    // Inventario: motivo obligatorio para entradas y ajustes.
-    if (number === 51501) {
-      res.status(400).json({
-        error: {
-          code: "INVENTORY_REASON_REQUIRED",
-          message: "El motivo del movimiento es obligatorio.",
-        },
-      });
-      return;
-    }
-
-    // Inventario: variante inexistente.
-    if (number === 51502) {
-      res.status(404).json({
-        error: {
-          code: "INVENTORY_VARIANT_NOT_FOUND",
-          message: "La variante solicitada no existe.",
-        },
-      });
-      return;
-    }
-
-    // Inventario: ubicación inexistente o inactiva.
-    if (number === 51503) {
-      res.status(400).json({
-        error: {
-          code: "INVALID_INVENTORY_LOCATION",
-          message: "La ubicación no existe o está inactiva.",
-        },
-      });
-      return;
-    }
-
-    // Inventario: bloqueo no adquirido por concurrencia.
-    if (number === 51504) {
-      res.status(409).json({
-        error: {
-          code: "INVENTORY_LOCK_CONFLICT",
-          message: "El inventario está siendo actualizado. Intenta nuevamente.",
-        },
-      });
-      return;
-    }
-
-    // Inventario: la existencia resultante supera el límite INT.
-    if (number === 51505) {
-      res.status(400).json({
-        error: {
-          code: "INVENTORY_LIMIT_EXCEEDED",
-          message: "La existencia supera el límite permitido.",
-        },
-      });
-      return;
-    }
-
-    // Inventario: no existe saldo para la variante y ubicación indicadas.
-    if (number === 51507) {
-      res.status(404).json({
-        error: {
-          code: "INVENTORY_NOT_FOUND",
-          message: "No existe inventario para esta variante y ubicación.",
-        },
-      });
-      return;
-    }
-
-    // Inventario: el ajuste dejaría existencias negativas o inferiores a las reservadas.
-    if (number === 51508) {
-      res.status(409).json({
-        error: {
-          code: "INSUFFICIENT_INVENTORY",
-          message: "El ajuste supera las existencias disponibles.",
-        },
-      });
-      return;
-    }
-
-    // Inventario: identificador de variante o ubicación inválido.
-    if (number === 51509 || number === 51510) {
-      res.status(400).json({
-        error: {
-          code: "INVALID_INVENTORY_FILTER",
-          message: "El filtro de inventario no es válido.",
-        },
-      });
-      return;
-    }
-
-    // Inventario: parámetros de paginación inválidos.
-    if (number === 51511) {
-      res.status(400).json({
-        error: {
-          code: "INVALID_PAGINATION",
-          message: "La paginación proporcionada no es válida.",
-        },
-      });
-      return;
-    }
-
-    // Inventario: fecha inicial posterior a la fecha final.
-    if (number === 51512) {
-      res.status(400).json({
-        error: {
-          code: "INVALID_DATE_RANGE",
-          message: "El rango de fechas no es válido.",
-        },
-      });
-      return;
-    }
-
-    // ShopCart (THROW): 51205 = ordenamiento inválido.
-    if (number === 51205) {
-      res.status(400).json({
-        error: {
-          code: "INVALID_SORT_ORDER",
-          message: "El ordenamiento proporcionado no es válido.",
-        },
-      });
-      return;
-    }
-
-    // ShopCart (THROW): 51022 = token desconocido; 51023 = sesión no vigente;
-    // 51024 = reutilización de un refresh token detectada.
-    if ([51022, 51023, 51024].includes(number ?? -1)) {
-      res.clearCookie("refreshToken", {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/api/v1/auth",
-      });
-
-      res.status(401).json({
-        error: {
-          code: "INVALID_REFRESH_TOKEN",
-          message: "La sesión expiró o dejó de ser válida.",
-        },
-      });
-      return;
-    }
-
-    // SQL Server: 2601 = duplicado en índice único; 2627 = violación de PK/UNIQUE.
-    // Solo se traduce a correo duplicado cuando corresponde a UQ_Usuario_Correo.
-    if (
-      (number === 2601 || number === 2627) &&
-      message.includes("UQ_Usuario_Correo")
-    ) {
-      res.status(409).json({
-        error: {
-          code: "EMAIL_ALREADY_EXISTS",
-          message: "El correo ya está registrado.",
-        },
-      });
-      return;
-    }
+  if (sqlErrorResponse) {
+    sendErrorResponse(res, sqlErrorResponse);
+    return;
   }
 
   console.error("Error interno de la aplicación.");
-
-  res.status(500).json({
-    error: {
-      code: "INTERNAL_ERROR",
-      message: "Ocurrió un error interno.",
-    },
+  sendErrorResponse(res, {
+    status: 500,
+    code: "INTERNAL_ERROR",
+    message: "Ocurrió un error interno.",
   });
 };
