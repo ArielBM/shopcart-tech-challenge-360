@@ -7,7 +7,7 @@ import type {
   ProductRecord,
   ProductListRecord,
   UpdateProductData,
-} from "./catalog.types";
+} from "./products.types";
 
 import type { ListProductInput } from "./products.schemas";
 

@@ -4,7 +4,7 @@ import {
   listProducts,
 } from "./products.repository";
 
-import type { ProductRecord, ProductListRecord } from "./catalog.types";
+import type { ProductRecord, ProductListRecord } from "./products.types";
 
 import type {
   CreateProductInput,
