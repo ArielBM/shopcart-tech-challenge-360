@@ -121,6 +121,127 @@ export const errorMiddleware: ErrorRequestHandler = (
       return;
     }
 
+    // Inventario: cantidad de entrada inválida o ajuste igual a cero.
+    if (number === 51500 || number === 51506) {
+      res.status(400).json({
+        error: {
+          code: "INVALID_INVENTORY_QUANTITY",
+          message: "La cantidad de inventario no es válida.",
+        },
+      });
+      return;
+    }
+
+    // Inventario: motivo obligatorio para entradas y ajustes.
+    if (number === 51501) {
+      res.status(400).json({
+        error: {
+          code: "INVENTORY_REASON_REQUIRED",
+          message: "El motivo del movimiento es obligatorio.",
+        },
+      });
+      return;
+    }
+
+    // Inventario: variante inexistente.
+    if (number === 51502) {
+      res.status(404).json({
+        error: {
+          code: "INVENTORY_VARIANT_NOT_FOUND",
+          message: "La variante solicitada no existe.",
+        },
+      });
+      return;
+    }
+
+    // Inventario: ubicación inexistente o inactiva.
+    if (number === 51503) {
+      res.status(400).json({
+        error: {
+          code: "INVALID_INVENTORY_LOCATION",
+          message: "La ubicación no existe o está inactiva.",
+        },
+      });
+      return;
+    }
+
+    // Inventario: bloqueo no adquirido por concurrencia.
+    if (number === 51504) {
+      res.status(409).json({
+        error: {
+          code: "INVENTORY_LOCK_CONFLICT",
+          message: "El inventario está siendo actualizado. Intenta nuevamente.",
+        },
+      });
+      return;
+    }
+
+    // Inventario: la existencia resultante supera el límite INT.
+    if (number === 51505) {
+      res.status(400).json({
+        error: {
+          code: "INVENTORY_LIMIT_EXCEEDED",
+          message: "La existencia supera el límite permitido.",
+        },
+      });
+      return;
+    }
+
+    // Inventario: no existe saldo para la variante y ubicación indicadas.
+    if (number === 51507) {
+      res.status(404).json({
+        error: {
+          code: "INVENTORY_NOT_FOUND",
+          message: "No existe inventario para esta variante y ubicación.",
+        },
+      });
+      return;
+    }
+
+    // Inventario: el ajuste dejaría existencias negativas o inferiores a las reservadas.
+    if (number === 51508) {
+      res.status(409).json({
+        error: {
+          code: "INSUFFICIENT_INVENTORY",
+          message: "El ajuste supera las existencias disponibles.",
+        },
+      });
+      return;
+    }
+
+    // Inventario: identificador de variante o ubicación inválido.
+    if (number === 51509 || number === 51510) {
+      res.status(400).json({
+        error: {
+          code: "INVALID_INVENTORY_FILTER",
+          message: "El filtro de inventario no es válido.",
+        },
+      });
+      return;
+    }
+
+    // Inventario: parámetros de paginación inválidos.
+    if (number === 51511) {
+      res.status(400).json({
+        error: {
+          code: "INVALID_PAGINATION",
+          message: "La paginación proporcionada no es válida.",
+        },
+      });
+      return;
+    }
+
+    // Inventario: fecha inicial posterior a la fecha final.
+    if (number === 51512) {
+      res.status(400).json({
+        error: {
+          code: "INVALID_DATE_RANGE",
+          message: "El rango de fechas no es válido.",
+        },
+      });
+      return;
+    }
+
     // ShopCart (THROW): 51205 = ordenamiento inválido.
     if (number === 51205) {
       res.status(400).json({
