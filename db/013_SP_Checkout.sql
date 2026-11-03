@@ -4,7 +4,6 @@
    - SP_Checkout_ExpirarReservas
    - SP_Checkout_Cancelar
    - SP_Checkout_ConfirmarPago
-   - SP_Checkout_DetalleCheckout 
 */
 USE ShopCartDB;
 
@@ -723,7 +722,8 @@ BEGIN
        OR @MetodoEnvio IS NULL
        OR LEN(LTRIM(RTRIM(@MetodoEnvio))) = 0
        OR @CostoEnvio IS NULL
-       OR @CostoEnvio < 0
+       OR @CostoEnvio <> 0
+       OR @MetodoEnvio <> N'ESTANDAR'
        OR DATALENGTH(@HuellaSolicitud) <> 32
         THROW 51740, N'Parametros de confirmacion invalidos.', 1;
     
@@ -737,13 +737,13 @@ BEGIN
     
     DECLARE @IDIntento AS BIGINT;
     
-    DECLARE @IDIntentoExistente AS BIGINT;
-    
     DECLARE @HuellaExistente AS VARBINARY(32);
     
-    DECLARE @UsuarioExistente AS INT;
-    
     DECLARE @EstadoIntento AS VARCHAR(20);
+    
+    DECLARE @IDCheckoutIntento AS BIGINT;
+    
+    DECLARE @MontoIntento AS DECIMAL(18,2);
     
     DECLARE @Resultado AS INT;
     
@@ -771,9 +771,11 @@ BEGIN
     
     DECLARE @Precio AS DECIMAL(18,2);
     
-    DECLARE @ImporteAmplio AS DECIMAL(38,2);
+    DECLARE @SubtotalLinea AS DECIMAL(18,2);
     
-    DECLARE @Importe AS DECIMAL(18,2);
+    DECLARE @DescuentoLinea AS DECIMAL(18,2);
+    
+    DECLARE @TotalLinea AS DECIMAL(18,2);
     
     DECLARE @SKU AS VARCHAR(64);
     
@@ -801,40 +803,59 @@ BEGIN
         IF @Resultado < 0
             THROW 51742, N'No se pudo bloquear el carrito.', 1;
         
-        -- Reintento: devolver resultado anterior sin crear pedido ni cobrar de nuevo.
-        SELECT @IDIntentoExistente = p.IDIntentoPago,
+        -- Serializar la misma clave usada al registrar y resolver el intento.
+        SET @Recurso = CONCAT(N'Pago:Clave:', CONVERT (VARCHAR(36), @ClaveIdempotencia));
+        
+        EXECUTE @Resultado = sys.sp_getapplock @Resource = @Recurso, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 10000;
+        
+        IF @Resultado < 0
+            THROW 51758, N'No se pudo bloquear el intento de pago.', 1;
+        
+        -- El intento ya debe existir. No se inserta uno nuevo al confirmar.
+        SELECT @IDIntento = p.IDIntentoPago,
+               @IDCheckoutIntento = p.IDCheckout,
                @IDPedido = p.IDPedido,
                @HuellaExistente = p.HuellaSolicitud,
                @EstadoIntento = p.Estado,
-               @UsuarioExistente = o.IDUsuario
+               @MontoIntento = p.Monto
         FROM dbo.IntentoPago AS p WITH (UPDLOCK, HOLDLOCK)
-             INNER JOIN
-             dbo.Pedido AS o
-             ON o.IDPedido = p.IDPedido
         WHERE p.ClaveIdempotencia = @ClaveIdempotencia;
         
-        IF @IDIntentoExistente IS NOT NULL
+        IF @IDIntento IS NULL
+            THROW 51759, N'El intento de pago no existe.', 1;
+        
+        IF @IDCheckoutIntento <> @IDCheckout
+           OR @HuellaExistente <> @HuellaSolicitud
+            THROW 51743, N'Clave de idempotencia reutilizada.', 1;
+        
+        -- Un reintento exitoso devuelve el mismo pedido, sin nuevos efectos.
+        IF @EstadoIntento = 'EXITOSO'
             BEGIN
-                IF @UsuarioExistente <> @IDUsuario
-                   OR @HuellaExistente <> @HuellaSolicitud
+                IF @IDPedido IS NULL
                    OR NOT EXISTS (SELECT 1
                                   FROM dbo.Pedido
                                   WHERE IDPedido = @IDPedido
-                                        AND IDCheckout = @IDCheckout)
-                    THROW 51743, N'Clave de idempotencia reutilizada.', 1;
-                
-                IF @EstadoIntento <> 'EXITOSO'
-                    THROW 51744, N'El intento anterior no esta confirmado.', 1;
+                                        AND IDCheckout = @IDCheckout
+                                        AND IDUsuario = @IDUsuario
+                                        AND Estado = 'PAGADO'
+                                        AND Total = @MontoIntento)
+                    THROW 51760, N'El pago confirmado no tiene un pedido valido.', 1;
                 
                 COMMIT TRANSACTION;
                 
                 SELECT @IDPedido AS IDPedido,
-                       @IDIntentoExistente AS IDIntentoPago,
+                       @IDIntento AS IDIntentoPago,
                        CAST ('PAGADO' AS VARCHAR(25)) AS Estado,
                        CAST (1 AS BIT) AS Reutilizado;
                 
                 RETURN;
             END
+        
+        IF @EstadoIntento <> 'PENDIENTE'
+            THROW 51744, N'El intento de pago no esta pendiente.', 1;
+        
+        IF @IDPedido IS NOT NULL
+            THROW 51760, N'El intento pendiente ya tiene un pedido.', 1;
         
         SELECT @EstadoCheckout = Estado,
                @FechaExpiracion = FechaExpiracion
@@ -893,6 +914,9 @@ BEGIN
         
         SET @Total = CONVERT (DECIMAL(18,2), @SubtotalAmplio + @CostoEnvio);
         
+        IF @MontoIntento <> @Total
+            THROW 51761, N'El monto del intento no coincide con el pedido.', 1;
+        
         INSERT INTO dbo.Pedido (
             IDCheckout,
             IDUsuario,
@@ -948,7 +972,10 @@ BEGIN
                        r.Cantidad,
                        d.PrecioUnitario,
                        d.SKUHistorico,
-                       d.NombreHistorico
+                       d.NombreHistorico,
+                       d.Subtotal,
+                       d.Descuento,
+                       d.Total
                 FROM dbo.ReservaInventario AS r
                      INNER JOIN
                      dbo.InventarioPorUbicacion AS i
@@ -997,7 +1024,7 @@ BEGIN
         
         OPEN Lineas;
         
-        FETCH NEXT FROM Lineas INTO @IDReserva, @IDInventario, @IDVariante, @IDUbicacion, @Cantidad, @Precio, @SKU, @Nombre;
+        FETCH NEXT FROM Lineas INTO @IDReserva, @IDInventario, @IDVariante, @IDUbicacion, @Cantidad, @Precio, @SKU, @Nombre, @SubtotalLinea, @DescuentoLinea, @TotalLinea;
         
         WHILE @@FETCH_STATUS = 0
             BEGIN
@@ -1008,12 +1035,10 @@ BEGIN
                 IF @Resultado < 0
                     THROW 51752, N'No se pudo bloquear el inventario.', 1;
                 
-                SET @ImporteAmplio = CONVERT (DECIMAL(38,2), @Cantidad * @Precio);
-                
-                IF @ImporteAmplio > 9999999999999999.99
-                    THROW 51750, N'Importe de linea fuera de rango.', 1;
-                
-                SET @Importe = CONVERT (DECIMAL(18,2), @ImporteAmplio);
+                -- Los importes de la linea proceden de la cotizacion persistida.
+                IF @DescuentoLinea <> 0
+                   OR @TotalLinea <> @SubtotalLinea
+                    THROW 51750, N'Importes de cotizacion inconsistentes.', 1;
                 
                 UPDATE dbo.InventarioPorUbicacion
                 SET ExistenciaFisica   = ExistenciaFisica - @Cantidad,
@@ -1039,7 +1064,7 @@ BEGIN
                     Total,
                     MontoDevuelto
                 )
-                VALUES                        (@IDPedido, @IDVariante, @SKU, @Nombre, @Cantidad, 0, @Precio, @Importe, 0, @Importe, 0);
+                VALUES                        (@IDPedido, @IDVariante, @SKU, @Nombre, @Cantidad, 0, @Precio, @SubtotalLinea, @DescuentoLinea, @TotalLinea, 0);
                 
                 SET @IDDetallePedido = CONVERT (BIGINT, SCOPE_IDENTITY());
                 
@@ -1076,26 +1101,29 @@ BEGIN
                 IF @@ROWCOUNT <> 1
                     THROW 51754, N'La reserva cambio de estado.', 1;
                 
-                FETCH NEXT FROM Lineas INTO @IDReserva, @IDInventario, @IDVariante, @IDUbicacion, @Cantidad, @Precio, @SKU, @Nombre;
+                FETCH NEXT FROM Lineas INTO @IDReserva, @IDInventario, @IDVariante, @IDUbicacion, @Cantidad, @Precio, @SKU, @Nombre, @SubtotalLinea, @DescuentoLinea, @TotalLinea;
             END
         
         CLOSE Lineas;
         
         DEALLOCATE Lineas;
         
-        INSERT INTO dbo.IntentoPago (
-            IDPedido,
-            ClaveIdempotencia,
-            HuellaSolicitud,
-            Estado,
-            Monto,
-            ReferenciaProcesador,
-            FechaCreacion,
-            FechaResolucion
-        )
-        VALUES                      (@IDPedido, @ClaveIdempotencia, @HuellaSolicitud, 'EXITOSO', @Total, @ReferenciaProcesador, @Ahora, @Ahora);
+        -- Confirmar el mismo intento PENDIENTE, dentro de la transaccion.
+        UPDATE dbo.IntentoPago
+        SET IDPedido             = @IDPedido,
+            Estado               = 'EXITOSO',
+            ReferenciaProcesador = @ReferenciaProcesador,
+            FechaResolucion      = @Ahora
+        WHERE IDIntentoPago = @IDIntento
+              AND IDCheckout = @IDCheckout
+              AND ClaveIdempotencia = @ClaveIdempotencia
+              AND HuellaSolicitud = @HuellaSolicitud
+              AND Estado = 'PENDIENTE'
+              AND IDPedido IS NULL
+              AND Monto = @Total;
         
-        SET @IDIntento = CONVERT (BIGINT, SCOPE_IDENTITY());
+        IF @@ROWCOUNT <> 1
+            THROW 51762, N'No se pudo confirmar el intento de pago.', 1;
         
         SELECT @IDEstadoPagado = IDEstadoPedido
         FROM dbo.EstadoPedido
@@ -1151,32 +1179,3 @@ BEGIN
         THROW;
     END CATCH
 END
-
-
-GO
-
-IF OBJECT_ID(N'dbo.DetalleCheckout', N'U') IS NULL
-    BEGIN
-        CREATE TABLE dbo.DetalleCheckout (
-            IDDetalleCheckout BIGINT        IDENTITY (1, 1) NOT NULL,
-            IDCheckout        BIGINT        NOT NULL,
-            IDVariante        INT           NOT NULL,
-            SKUHistorico      VARCHAR(64)   NOT NULL,
-            NombreHistorico   NVARCHAR(250) NOT NULL,
-            Cantidad          INT           NOT NULL,
-            PrecioUnitario    DECIMAL(18,2) NOT NULL,
-            Subtotal          DECIMAL(18,2) NOT NULL,
-            Descuento         DECIMAL(18,2) NOT NULL,
-            Total             DECIMAL(18,2) NOT NULL,
-            CONSTRAINT PK_DetalleCheckout PRIMARY KEY (IDDetalleCheckout),
-            CONSTRAINT UQ_DetalleCheckout_Checkout_Variante UNIQUE (IDCheckout, IDVariante),
-            CONSTRAINT FK_DetalleCheckout_Checkout FOREIGN KEY (IDCheckout) REFERENCES dbo.Checkout (IDCheckout),
-            CONSTRAINT FK_DetalleCheckout_Variante FOREIGN KEY (IDVariante) REFERENCES dbo.Variante (IDVariante),
-            CONSTRAINT CK_DetalleCheckout_Importes CHECK (Cantidad > 0
-                                                          AND PrecioUnitario >= 0
-                                                          AND Subtotal = Cantidad * PrecioUnitario
-                                                          AND Descuento >= 0
-                                                          AND Descuento <= Subtotal
-                                                          AND Total = Subtotal - Descuento)
-        );
-    END

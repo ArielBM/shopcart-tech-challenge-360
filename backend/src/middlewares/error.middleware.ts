@@ -322,6 +322,219 @@ const sqlErrorResponses: Readonly<Partial<Record<number, HttpErrorResponse>>> =
       message:
         "No puedes modificar el carrito mientras exista un checkout pendiente. Cancélalo o espera a que expire.",
     },
+
+    // Checkout: confirmación de pago.
+    51740: {
+      status: 400,
+      code: "INVALID_PAYMENT_CONFIRMATION",
+      message: "Los datos de confirmación no son válidos.",
+    },
+    51741: {
+      status: 404,
+      code: "CHECKOUT_NOT_FOUND",
+      message: "El checkout solicitado no existe.",
+    },
+    51742: {
+      status: 409,
+      code: "CART_LOCK_CONFLICT",
+      message: "El carrito está ocupado. Intenta nuevamente.",
+    },
+    51743: {
+      status: 409,
+      code: "PAYMENT_IDEMPOTENCY_CONFLICT",
+      message: "La clave de pago ya fue utilizada para otra solicitud.",
+    },
+    51744: {
+      status: 409,
+      code: "PAYMENT_INVALID_STATE",
+      message: "El intento de pago no admite esta operación.",
+    },
+    51745: {
+      status: 409,
+      code: "CHECKOUT_NOT_ACTIVE",
+      message: "El checkout ya no está activo o ha vencido.",
+    },
+    51746: {
+      status: 409,
+      code: "CHECKOUT_HAS_ORDER",
+      message: "El checkout ya tiene un pedido.",
+    },
+    51747: {
+      status: 409,
+      code: "CHECKOUT_COUPON_CONFLICT",
+      message: "No es posible confirmar el cupón aplicado.",
+    },
+    51748: {
+      status: 409,
+      code: "ADDRESS_UNAVAILABLE",
+      message: "La dirección de entrega no está disponible.",
+    },
+    51749: {
+      status: 409,
+      code: "CART_EMPTY",
+      message: "El carrito está vacío.",
+    },
+    51750: {
+      status: 409,
+      code: "CHECKOUT_AMOUNT_INVALID",
+      message: "Los importes de la compra no son válidos.",
+    },
+    51751: {
+      status: 409,
+      code: "CHECKOUT_RESERVATION_CONFLICT",
+      message: "Los productos y las reservas no coinciden.",
+    },
+    51752: {
+      status: 409,
+      code: "INVENTORY_LOCK_CONFLICT",
+      message: "El inventario está ocupado. Intenta nuevamente.",
+    },
+    51753: {
+      status: 409,
+      code: "INVENTORY_RESERVATION_CONFLICT",
+      message: "Las existencias reservadas son inconsistentes.",
+    },
+    51754: {
+      status: 409,
+      code: "CHECKOUT_RESERVATION_CONFLICT",
+      message: "La reserva cambió de estado.",
+    },
+    51755: {
+      status: 500,
+      code: "PAYMENT_CONFIGURATION_ERROR",
+      message: "No fue posible completar el pago.",
+    },
+    51756: {
+      status: 409,
+      code: "CHECKOUT_STATE_CONFLICT",
+      message: "El checkout cambió de estado.",
+    },
+    51757: {
+      status: 409,
+      code: "CART_STATE_CONFLICT",
+      message: "El carrito cambió de estado.",
+    },
+    51758: {
+      status: 409,
+      code: "PAYMENT_LOCK_CONFLICT",
+      message: "El pago está ocupado. Intenta nuevamente.",
+    },
+    51759: {
+      status: 404,
+      code: "PAYMENT_ATTEMPT_NOT_FOUND",
+      message: "El intento de pago no existe.",
+    },
+    51760: {
+      status: 409,
+      code: "PAYMENT_ORDER_INCONSISTENT",
+      message: "El estado del pago y del pedido es inconsistente.",
+    },
+    51761: {
+      status: 409,
+      code: "PAYMENT_AMOUNT_MISMATCH",
+      message: "El monto del pago no coincide con el pedido.",
+    },
+    51762: {
+      status: 409,
+      code: "PAYMENT_CONFIRMATION_CONFLICT",
+      message: "No se pudo confirmar el intento de pago.",
+    },
+    // Procesador de pagos simulado.
+    51900: {
+      status: 400,
+      code: "INVALID_PAYMENT_REQUEST",
+      message: "Los datos de la solicitud de pago no son válidos.",
+    },
+    51901: {
+      status: 404,
+      code: "CHECKOUT_NOT_FOUND",
+      message: "El checkout solicitado no existe.",
+    },
+    51902: {
+      status: 409,
+      code: "CART_LOCK_CONFLICT",
+      message: "El carrito está ocupado. Intenta nuevamente.",
+    },
+    51903: {
+      status: 409,
+      code: "PAYMENT_LOCK_CONFLICT",
+      message: "El intento de pago está ocupado. Intenta nuevamente.",
+    },
+    51904: {
+      status: 409,
+      code: "PAYMENT_IDEMPOTENCY_CONFLICT",
+      message: "La clave de pago ya fue utilizada para otra solicitud.",
+    },
+    51905: {
+      status: 409,
+      code: "CHECKOUT_NOT_ACTIVE",
+      message: "El checkout ya no está activo o ha vencido.",
+    },
+    51906: {
+      status: 409,
+      code: "ADDRESS_UNAVAILABLE",
+      message: "La dirección de entrega no está disponible.",
+    },
+    51907: {
+      status: 409,
+      code: "PAYMENT_ALREADY_PENDING",
+      message: "Existe un intento de pago pendiente.",
+    },
+    51908: {
+      status: 409,
+      code: "PAYMENT_ALREADY_CONFIRMED",
+      message: "El checkout ya tiene un pago exitoso.",
+    },
+    51909: {
+      status: 409,
+      code: "PAYMENT_QUOTE_INVALID",
+      message: "La cotización del pago no es válida.",
+    },
+    51910: {
+      status: 409,
+      code: "PAYMENT_RESERVATION_CONFLICT",
+      message: "Las reservas no coinciden con la cotización.",
+    },
+    51911: {
+      status: 400,
+      code: "INVALID_PAYMENT_REQUEST",
+      message: "Los datos del intento de pago no son válidos.",
+    },
+    51912: {
+      status: 404,
+      code: "CHECKOUT_NOT_FOUND",
+      message: "El checkout solicitado no existe.",
+    },
+    51913: {
+      status: 409,
+      code: "CART_LOCK_CONFLICT",
+      message: "El carrito está ocupado. Intenta nuevamente.",
+    },
+    51914: {
+      status: 409,
+      code: "PAYMENT_LOCK_CONFLICT",
+      message: "El intento de pago está ocupado. Intenta nuevamente.",
+    },
+    51915: {
+      status: 404,
+      code: "PAYMENT_ATTEMPT_NOT_FOUND",
+      message: "El intento de pago no existe.",
+    },
+    51916: {
+      status: 409,
+      code: "PAYMENT_IDEMPOTENCY_CONFLICT",
+      message: "La solicitud no coincide con el intento registrado.",
+    },
+    51917: {
+      status: 409,
+      code: "PAYMENT_STATE_CONFLICT",
+      message: "El intento de pago cambió de estado.",
+    },
+    51918: {
+      status: 409,
+      code: "PAYMENT_INVALID_STATE",
+      message: "El intento de pago no admite registrar un fallo.",
+    },
   };
 
 function isObject(value: unknown): value is Record<string, unknown> {

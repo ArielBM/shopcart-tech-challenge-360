@@ -415,10 +415,11 @@ BEGIN TRY
     CREATE INDEX IX_ReservaInventario_Inventario_Estado
         ON dbo.ReservaInventario(IDInventarioPorUbicacion, Estado);
     
-    -- 11. IntentoPago | Identifica reintentos sin duplicar cobros.
+    -- 11. IntentoPago | Intentos persistentes e idempotentes.
     CREATE TABLE dbo.IntentoPago (
         IDIntentoPago        BIGINT           IDENTITY (1, 1) NOT NULL CONSTRAINT PK_IntentoPago PRIMARY KEY,
-        IDPedido             BIGINT           NOT NULL,
+        IDCheckout           BIGINT           NOT NULL,
+        IDPedido             BIGINT           NULL,
         ClaveIdempotencia    UNIQUEIDENTIFIER NOT NULL,
         HuellaSolicitud      VARBINARY(32)    NOT NULL,
         Estado               VARCHAR(20)      NOT NULL,
@@ -452,6 +453,18 @@ BEGIN TRY
     
     CREATE INDEX IX_IntentoPago_Pedido_Fecha
         ON dbo.IntentoPago(IDPedido, FechaCreacion DESC);
+    
+    -- Todo intento pertenece a un checkout existente.
+    ALTER TABLE dbo.IntentoPago
+        ADD CONSTRAINT FK_IntentoPago_Checkout FOREIGN KEY (IDCheckout) REFERENCES dbo.Checkout (IDCheckout);
+    
+    -- Un checkout solo puede tener un pago exitoso.
+    CREATE UNIQUE INDEX UX_IntentoPago_Checkout_Exitoso
+        ON dbo.IntentoPago(IDCheckout) WHERE Estado = 'EXITOSO';
+    
+    -- Facilita consultar y recuperar los intentos.
+    CREATE INDEX IX_IntentoPago_Checkout_Fecha
+        ON dbo.IntentoPago(IDCheckout, FechaCreacion DESC);
     
     -- 12. UsoCupon | Un consumo confirmado por pedido.
     CREATE TABLE dbo.UsoCupon (
