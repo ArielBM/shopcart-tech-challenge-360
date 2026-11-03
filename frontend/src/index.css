@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --color-brand: #6354d6;
+  --color-brand-soft: #eeebfc;
+  --color-canvas: #f0f2f8;
+  --color-sidebar: #1c232f;
+  --color-ink: #202936;
+  --color-muted: #5b6575;
+  --color-line: #dfe3ec;
+  --shadow-panel: 0 2px 8px -2px rgb(28 35 47 / 0.08);
+}
+
+@layer base {
+  html { color-scheme: light; }
+  body { margin: 0; font-family: var(--font-sans); }
+  button:not(:disabled), summary { cursor: pointer; }
+  :focus-visible { outline: 3px solid var(--color-brand); outline-offset: 4px; }
+  dialog:modal { overflow-y: auto; overscroll-behavior: contain; }
+  body:has(dialog[open]) { overflow: hidden; }
+}
