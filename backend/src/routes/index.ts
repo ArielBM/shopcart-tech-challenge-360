@@ -7,6 +7,7 @@ import { cartRouter } from "../modules/cart/cart.routes";
 import { checkoutRouter } from "../modules/checkout/checkout.routes";
 import { addressesRouter } from "../modules/addresses/addresses.routes";
 import { paymentsRouter } from "../modules/payments/payments.routes";
+import { auditRouter } from "../modules/audit/audit.routes";
 
 export const apiRouter = Router();
 
@@ -22,3 +23,4 @@ apiRouter.use("/cart", cartRouter);
 apiRouter.use("/checkout", checkoutRouter);
 apiRouter.use("/addresses", addressesRouter);
 apiRouter.use("/payments", paymentsRouter);
+apiRouter.use("/audit", auditRouter);
