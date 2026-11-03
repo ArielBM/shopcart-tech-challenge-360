@@ -31,155 +31,270 @@ const invalidInventoryFilterError: HttpErrorResponse = {
 };
 
 // Traducciones de THROW a respuestas públicas, agrupadas por módulo.
-const sqlErrorResponses: Readonly<Partial<Record<number, HttpErrorResponse>>> = {
-  // Catálogo: categorías.
-  51101: {
-    status: 404,
-    code: "CATEGORY_NOT_FOUND",
-    message: "La categoría solicitada no existe.",
-  },
+const sqlErrorResponses: Readonly<Partial<Record<number, HttpErrorResponse>>> =
+  {
+    // Catálogo: categorías.
+    51101: {
+      status: 404,
+      code: "CATEGORY_NOT_FOUND",
+      message: "La categoría solicitada no existe.",
+    },
 
-  // Catálogo: productos.
-  51201: {
-    status: 400,
-    code: "INVALID_PRODUCT_CATEGORY",
-    message: "La categoría no existe o está inactiva.",
-  },
-  51202: {
-    status: 404,
-    code: "PRODUCT_NOT_FOUND",
-    message: "El producto solicitado no existe.",
-  },
-  51203: {
-    status: 400,
-    code: "INVALID_PAGINATION",
-    message: "La paginación proporcionada no es válida.",
-  },
-  51204: {
-    status: 400,
-    code: "INVALID_PRICE_RANGE",
-    message: "El formato o rango de precios proporcionado no es válido.",
-  },
-  51205: {
-    status: 400,
-    code: "INVALID_SORT_ORDER",
-    message: "El ordenamiento proporcionado no es válido.",
-  },
-  // Previsto: los SP actuales todavía no lanzan 51206.
-  51206: {
-    status: 400,
-    code: "INVALID_PRODUCT_STATUS",
-    message: "El estado del producto es obligatorio.",
-  },
+    // Catálogo: productos.
+    51201: {
+      status: 400,
+      code: "INVALID_PRODUCT_CATEGORY",
+      message: "La categoría no existe o está inactiva.",
+    },
+    51202: {
+      status: 404,
+      code: "PRODUCT_NOT_FOUND",
+      message: "El producto solicitado no existe.",
+    },
+    51203: {
+      status: 400,
+      code: "INVALID_PAGINATION",
+      message: "La paginación proporcionada no es válida.",
+    },
+    51204: {
+      status: 400,
+      code: "INVALID_PRICE_RANGE",
+      message: "El formato o rango de precios proporcionado no es válido.",
+    },
+    51205: {
+      status: 400,
+      code: "INVALID_SORT_ORDER",
+      message: "El ordenamiento proporcionado no es válido.",
+    },
+    // Previsto: los SP actuales todavía no lanzan 51206.
+    51206: {
+      status: 400,
+      code: "INVALID_PRODUCT_STATUS",
+      message: "El estado del producto es obligatorio.",
+    },
 
-  // Inventario.
-  51500: invalidInventoryQuantityError,
-  51501: {
-    status: 400,
-    code: "INVENTORY_REASON_REQUIRED",
-    message: "El motivo del movimiento es obligatorio.",
-  },
-  51502: {
-    status: 404,
-    code: "INVENTORY_VARIANT_NOT_FOUND",
-    message: "La variante solicitada no existe.",
-  },
-  51503: {
-    status: 400,
-    code: "INVALID_INVENTORY_LOCATION",
-    message: "La ubicación no existe o está inactiva.",
-  },
-  51504: {
-    status: 409,
-    code: "INVENTORY_LOCK_CONFLICT",
-    message: "El inventario está siendo actualizado. Intenta nuevamente.",
-  },
-  51505: {
-    status: 400,
-    code: "INVENTORY_LIMIT_EXCEEDED",
-    message: "La existencia supera el límite permitido.",
-  },
-  51506: invalidInventoryQuantityError,
-  51507: {
-    status: 404,
-    code: "INVENTORY_NOT_FOUND",
-    message: "No existe inventario para esta variante y ubicación.",
-  },
-  51508: {
-    status: 409,
-    code: "INSUFFICIENT_INVENTORY",
-    message: "El ajuste supera las existencias disponibles.",
-  },
-  51509: invalidInventoryFilterError,
-  51510: invalidInventoryFilterError,
-  51511: {
-    status: 400,
-    code: "INVALID_PAGINATION",
-    message: "La paginación proporcionada no es válida.",
-  },
-  51512: {
-    status: 400,
-    code: "INVALID_DATE_RANGE",
-    message: "El rango de fechas no es válido.",
-  },
+    // Inventario.
+    51500: invalidInventoryQuantityError,
+    51501: {
+      status: 400,
+      code: "INVENTORY_REASON_REQUIRED",
+      message: "El motivo del movimiento es obligatorio.",
+    },
+    51502: {
+      status: 404,
+      code: "INVENTORY_VARIANT_NOT_FOUND",
+      message: "La variante solicitada no existe.",
+    },
+    51503: {
+      status: 400,
+      code: "INVALID_INVENTORY_LOCATION",
+      message: "La ubicación no existe o está inactiva.",
+    },
+    51504: {
+      status: 409,
+      code: "INVENTORY_LOCK_CONFLICT",
+      message: "El inventario está siendo actualizado. Intenta nuevamente.",
+    },
+    51505: {
+      status: 400,
+      code: "INVENTORY_LIMIT_EXCEEDED",
+      message: "La existencia supera el límite permitido.",
+    },
+    51506: invalidInventoryQuantityError,
+    51507: {
+      status: 404,
+      code: "INVENTORY_NOT_FOUND",
+      message: "No existe inventario para esta variante y ubicación.",
+    },
+    51508: {
+      status: 409,
+      code: "INSUFFICIENT_INVENTORY",
+      message: "El ajuste supera las existencias disponibles.",
+    },
+    51509: invalidInventoryFilterError,
+    51510: invalidInventoryFilterError,
+    51511: {
+      status: 400,
+      code: "INVALID_PAGINATION",
+      message: "La paginación proporcionada no es válida.",
+    },
+    51512: {
+      status: 400,
+      code: "INVALID_DATE_RANGE",
+      message: "El rango de fechas no es válido.",
+    },
 
-  // Carrito.
-  51600: {
-    status: 400,
-    code: "INVALID_CART_QUANTITY",
-    message: "La cantidad debe ser un entero positivo.",
-  },
-  51601: {
-    status: 400,
-    code: "INVALID_CART_OWNER",
-    message: "El propietario del carrito no es válido.",
-  },
-  51602: {
-    status: 409,
-    code: "CART_LOCK_CONFLICT",
-    message: "El carrito está ocupado. Intenta nuevamente.",
-  },
-  51603: {
-    status: 409,
-    code: "CART_VARIANT_UNAVAILABLE",
-    message: "La variante no está disponible para la compra.",
-  },
-  51604: {
-    status: 409,
-    code: "CART_LOCATION_UNAVAILABLE",
-    message: "La bodega central no está disponible.",
-  },
-  51605: {
-    status: 409,
-    code: "CART_INVENTORY_LOCK_CONFLICT",
-    message: "No se pudo consultar el inventario. Intenta nuevamente.",
-  },
-  51606: {
-    status: 409,
-    code: "INSUFFICIENT_STOCK",
-    message: "No hay existencias suficientes para la cantidad solicitada.",
-  },
-  51607: {
-    status: 409,
-    code: "CART_QUANTITY_LIMIT",
-    message: "La cantidad acumulada supera el límite permitido.",
-  },
-  51608: {
-    status: 404,
-    code: "CART_NOT_FOUND",
-    message: "No existe un carrito activo.",
-  },
-  51609: {
-    status: 404,
-    code: "CART_ITEM_NOT_FOUND",
-    message: "La variante no existe en el carrito.",
-  },
-  51610: {
-    status: 400,
-    code: "INVALID_CART_VARIANT",
-    message: "El identificador de variante no es válido.",
-  },
-};
+    // Carrito.
+    51600: {
+      status: 400,
+      code: "INVALID_CART_QUANTITY",
+      message: "La cantidad debe ser un entero positivo.",
+    },
+    51601: {
+      status: 400,
+      code: "INVALID_CART_OWNER",
+      message: "El propietario del carrito no es válido.",
+    },
+    51602: {
+      status: 409,
+      code: "CART_LOCK_CONFLICT",
+      message: "El carrito está ocupado. Intenta nuevamente.",
+    },
+    51603: {
+      status: 409,
+      code: "CART_VARIANT_UNAVAILABLE",
+      message: "La variante no está disponible para la compra.",
+    },
+    51604: {
+      status: 409,
+      code: "CART_LOCATION_UNAVAILABLE",
+      message: "La bodega central no está disponible.",
+    },
+    51605: {
+      status: 409,
+      code: "CART_INVENTORY_LOCK_CONFLICT",
+      message: "No se pudo consultar el inventario. Intenta nuevamente.",
+    },
+    51606: {
+      status: 409,
+      code: "INSUFFICIENT_STOCK",
+      message: "No hay existencias suficientes para la cantidad solicitada.",
+    },
+    51607: {
+      status: 409,
+      code: "CART_QUANTITY_LIMIT",
+      message: "La cantidad acumulada supera el límite permitido.",
+    },
+    51608: {
+      status: 404,
+      code: "CART_NOT_FOUND",
+      message: "No existe un carrito activo.",
+    },
+    51609: {
+      status: 404,
+      code: "CART_ITEM_NOT_FOUND",
+      message: "La variante no existe en el carrito.",
+    },
+    51610: {
+      status: 400,
+      code: "INVALID_CART_VARIANT",
+      message: "El identificador de variante no es válido.",
+    },
+
+    // Checkout: inicio y reservas.
+    51700: {
+      status: 400,
+      code: "INVALID_CHECKOUT_CUSTOMER",
+      message: "El cliente no es válido.",
+    },
+    51701: {
+      status: 400,
+      code: "INVALID_CHECKOUT_REQUEST",
+      message: "Los datos de inicio del checkout no son válidos.",
+    },
+    51702: {
+      status: 409,
+      code: "CHECKOUT_LOCK_CONFLICT",
+      message: "El checkout está ocupado. Intenta nuevamente.",
+    },
+    51703: {
+      status: 409,
+      code: "CHECKOUT_IDEMPOTENCY_CONFLICT",
+      message: "La clave ya fue utilizada para otra solicitud.",
+    },
+    51704: {
+      status: 409,
+      code: "CART_LOCK_CONFLICT",
+      message: "El carrito está ocupado. Intenta nuevamente.",
+    },
+    51705: {
+      status: 404,
+      code: "CART_NOT_FOUND",
+      message: "No existe un carrito activo.",
+    },
+    51706: {
+      status: 400,
+      code: "CART_EMPTY",
+      message: "Agrega productos antes de iniciar el checkout.",
+    },
+    51707: {
+      status: 409,
+      code: "CHECKOUT_ALREADY_ACTIVE",
+      message: "El carrito ya tiene un checkout activo.",
+    },
+    51708: {
+      status: 409,
+      code: "CART_LOCATION_UNAVAILABLE",
+      message: "La bodega central no está disponible.",
+    },
+    51709: {
+      status: 409,
+      code: "CART_VARIANT_UNAVAILABLE",
+      message: "Una variante del carrito ya no está disponible.",
+    },
+    51710: {
+      status: 409,
+      code: "INVENTORY_LOCK_CONFLICT",
+      message: "El inventario está ocupado. Intenta nuevamente.",
+    },
+    51711: {
+      status: 409,
+      code: "INSUFFICIENT_STOCK",
+      message: "No hay existencias suficientes para completar la compra.",
+    },
+
+    // Checkout: cancelación.
+    51730: {
+      status: 400,
+      code: "INVALID_CHECKOUT_ID",
+      message: "Los identificadores no son válidos.",
+    },
+    51731: {
+      status: 404,
+      code: "CHECKOUT_NOT_FOUND",
+      message: "El checkout solicitado no existe.",
+    },
+    51732: {
+      status: 409,
+      code: "CART_LOCK_CONFLICT",
+      message: "El carrito está ocupado. Intenta nuevamente.",
+    },
+    51733: {
+      status: 409,
+      code: "CHECKOUT_NOT_CANCELLABLE",
+      message: "El checkout no puede cancelarse en su estado actual.",
+    },
+    51734: {
+      status: 409,
+      code: "CHECKOUT_EXPIRED",
+      message: "El checkout ya venció.",
+    },
+    51735: {
+      status: 409,
+      code: "CHECKOUT_HAS_ORDER",
+      message: "El checkout ya tiene un pedido asociado.",
+    },
+    51736: {
+      status: 409,
+      code: "INVENTORY_LOCK_CONFLICT",
+      message: "El inventario está ocupado. Intenta nuevamente.",
+    },
+    51737: {
+      status: 409,
+      code: "INVENTORY_RESERVATION_CONFLICT",
+      message: "Las existencias reservadas son inconsistentes.",
+    },
+    51738: {
+      status: 409,
+      code: "CHECKOUT_RESERVATION_CONFLICT",
+      message: "La reserva cambió de estado.",
+    },
+    51739: {
+      status: 409,
+      code: "CHECKOUT_STATE_CONFLICT",
+      message: "El checkout cambió de estado.",
+    },
+  };
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
