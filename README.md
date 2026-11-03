@@ -85,6 +85,7 @@ Ejecutar los archivos completos, en orden numérico, conservando sus separadores
 013_SP_Checkout.sql                    4 SP
 014_SP_Direcciones.sql                 2 SP
 015_SP_Pagos.sql                       2 SP
+016_SP_Bitacora.sql                    1 SP
 ```
 
 Desde la raíz, este ejemplo ejecuta `001–004` con autenticación de Windows y detiene la secuencia al primer error:
@@ -101,18 +102,18 @@ Get-ChildItem .\db\00[1-4]_*.sql | Sort-Object Name | ForEach-Object {
 
 **Paso manual obligatorio para `005`:** abrirlo en el cliente SQL y sustituir el marcador `REEMPLAZAR_POR_CONTRASENA_SEGURA` por una contraseña local propia antes de ejecutar el contenido. No ejecutar el marcador literalmente ni guardar la contraseña en el archivo versionado. El login es `shopcart_app`; copiar la misma contraseña a `DB_PASSWORD`. Si el login o usuario ya existen, revisar sus definiciones y permisos: `005` no comprueba su existencia.
 
-Después de configurar `005`, instalar `006–015`:
+Después de configurar `005`, instalar `006–016`:
 
 ```powershell
 Get-ChildItem .\db\*.sql |
-    Where-Object { $_.Name -match '^(00[6-9]|01[0-5])_' } |
+    Where-Object { $_.Name -match '^(00[6-9]|01[0-6])_' } |
     Sort-Object Name | ForEach-Object {
         sqlcmd -S $servidorSql -E -C -I -b -f 65001 -i $_.FullName
         if ($LASTEXITCODE -ne 0) { throw "Error al ejecutar $($_.Name)" }
     }
 ```
 
-La reconstrucción vigente contiene **31 tablas y 33 procedimientos almacenados**. `013` define Iniciar, ExpirarReservas, Cancelar y ConfirmarPago; su encabezado menciona además `SP_Checkout_DetalleCheckout`, pero ese procedimiento no está definido.
+La reconstrucción vigente contiene **31 tablas y 34 procedimientos almacenados**. `013` define Iniciar, ExpirarReservas, Cancelar y ConfirmarPago; su encabezado menciona además `SP_Checkout_DetalleCheckout`, pero ese procedimiento no está definido.
 
 ### 2.4. Datos y cuentas para la evaluación
 
@@ -180,11 +181,11 @@ backend/
     middlewares/     Autenticación, roles, validación de errores y rate limiting
     modules/
       auth/ categories/ products/ inventory/
-      cart/ checkout/ addresses/ payments/
+      cart/ checkout/ addresses/ payments/ audit/
     routes/          Composición bajo /api/v1 y health
     app.ts           Express y middlewares globales
     server.ts        Conexión inicial, escucha HTTP y expiración
-db/                  Scripts SQL numerados 001–015
+db/                  Scripts SQL numerados 001–016
 README.md
 ```
 
@@ -240,7 +241,13 @@ Productos admite `busqueda`, `idCategoria`, `precioMinimo`, `precioMaximo`, `sol
 - `POST /checkout/:idCheckout/cancel`: 200; cancela el checkout propio según su estado. No es cancelación de un pedido pagado.
 - `POST /payments/:idCheckout/process`: 201 nuevo o 200 reutilizado; `idDireccion` como cadena BIGINT positiva y `claveIdempotencia` UUID. Procesamiento simulado, sin datos bancarios.
 
-No hay endpoints para consultar pedidos, avanzar su estado, devolverlos, administrar cupones/usuarios, consultar bitácora o generar reportes.
+### Bitácora — ADMINISTRADOR
+
+- `GET /audit`: 200; consulta registros de auditoría, con filtro opcional `modulo`, `pagina` (desde 1) y `tamanoPagina` (1–100, por defecto 20). Devuelve `data` y `pagination.totalRegistros` como cadena para preservar BIGINT. Requiere JWT con rol `ADMINISTRADOR`; `CLIENTE` y `OPERADOR` no están autorizados.
+
+El procedimiento `SP_Bitacora_Consultar` devuelve los eventos por `FechaAccion DESC, IDBitacora DESC`. Esta API solo consulta; no ofrece creación, edición ni eliminación de registros.
+
+No hay endpoints para consultar pedidos, avanzar su estado, devolverlos, administrar cupones/usuarios o generar reportes.
 
 ### Ejemplo mínimo de cliente
 
@@ -300,6 +307,7 @@ IDs BIGINT de carrito, dirección, checkout, pedido, intento y movimiento se exp
 - **Idempotencia:** una clave de inicio identifica el checkout y una clave global identifica el intento de pago; se contrastan huellas SHA-256 de la solicitud. Misma operación recupera el resultado; reutilizar la clave con otros datos se rechaza. Índices únicos impiden más de un pago exitoso por checkout/pedido.
 - **Reintentos históricos:** si el intento ya fue exitoso, se recupera su resultado aunque el pedido avance a `EN_PREPARACION` o `CANCELADO`; el estado logístico no se modifica. `estado: PAGADO` en esa respuesta describe la confirmación recuperada, no consulta el estado actual del pedido ni acredita un reembolso.
 - **Kardex:** cada entrada/ajuste/venta registra usuario, fecha UTC, motivo y cantidad. Reservar o liberar no cambia el físico y no es un movimiento de venta/reintegro.
+- **Bitácora:** las escrituras de auditoría se realizan en procedimientos comerciales; `SP_Bitacora_Consultar` ofrece lectura filtrada y paginada solo a administradores a través de la API. El trigger protege contra `UPDATE`/`DELETE` ordinarios; no protege frente a administradores SQL con privilegios para alterar o deshabilitar objetos.
 - **Cupones:** descuento actual cero. Hay tablas para cupones, compromisos y usos, pero no aplicación comercial RF-05; el pago rechaza compromisos/descuentos no soportados. La atomicidad con uso de cupón sigue pendiente.
 
 ## 7. Modelo entidad-relación
@@ -409,7 +417,7 @@ Las devoluciones tienen tablas propias (`REGISTRADA`, `COMPLETADA`, `RECHAZADA`)
 - **RF-03 parcial:** entradas, ajustes, saldos y kardex HTTP; reservas/consumo en checkout. Reintegros comerciales de cancelaciones/devoluciones pendientes.
 - **RF-04:** cuatro operaciones de carrito autenticado y validación de stock; descuentos sin RF-05. Soporte SQL de invitado, sin integración HTTP de invitado.
 - **RF-06 parcial:** direcciones, checkout, reservas, cancelación/expiración de checkout y procesamiento de pagos simulados con cotización congelada e idempotencia. No incluye cupones ni cobro real.
-- **RF-09 parcial:** registros de catálogo/inventario y protección de bitácora; no existe consulta administrativa HTTP ni cobertura de módulos todavía pendientes.
+- **RF-09 parcial:** tabla `Bitacora` con actor, módulo, entidad, acción, fecha y snapshots JSON; trigger que rechaza `UPDATE`/`DELETE`; eventos registrados por operaciones existentes y consulta administrativa HTTP mediante `SP_Bitacora_Consultar` (`GET /api/v1/audit`). Están pendientes la verificación integral de permisos y la cobertura de todas las acciones críticas.
 - **RF-05, RF-07 operativo y RF-08:** sin implementación funcional completa; sus tablas no equivalen a casos de uso terminados. Frontend pendiente.
 
 ### Verificado y límites de cobertura
@@ -419,6 +427,7 @@ Las pruebas de integración de esta sesión se ejecutaron con Express y SQL Serv
 - Auth, categorías y productos cuentan con QA histórico y revalidaciones puntuales; no hay una suite completa actual de todos esos módulos. En productos persiste el hallazgo de precisión de `precioDesde` para importes extremos.
 - Inventario: QA GET de 125 PASS/0 FAIL y revalidación de 16 fallos previos con 16 PASS/0 FAIL, además de controles complementarios. No garantiza instantánea común entre COUNT y página del kardex.
 - Carrito: suite previa de 357 PASS/2 FAIL; posterior regresión de los fallos de bodega, 43 PASS/0 FAIL. No se presenta como una repetición integral posterior de todos los escenarios.
+- RF-09: estructura y endpoint de consulta presentes en `feature/audit`; aún no se dispone en este README de evidencia revisada que permita declarar sus pruebas PASS o el módulo completo.
 - RF-06 integral inicial: **61 PASS/3 FAIL**, incluyendo comprobaciones estáticas. Detectó pérdida de precisión/escala monetaria e idempotencia ligada al estado `PAGADO`.
 - Tras correcciones F1/F2 se recibió y ejecutó regresión focalizada: **38 PASS/0 FAIL funcionales y de control**. HTTP conservó `9007199254740991.99`, `0.10` y `0.00` en resultados nuevos, reutilizados y fallidos; reintentos tras `EN_PREPARACION` y `CANCELADO`, incluidos seis concurrentes por estado, recuperaron el mismo pago/pedido sin nuevos efectos. Los SQL vigentes `013/015` coinciden con los de esa regresión.
 - En esa regresión `typecheck` y `build` pasaron; `lint` señaló dos conversiones redundantes. Tras retirarlas, una ejecución posterior de `npm run lint` pasó. No se repitió toda la integración RF-06 después de las correcciones ni tras ese último ajuste del servicio.
