@@ -12,7 +12,8 @@ export interface TextInputProps extends Omit<InputHTMLAttributes<HTMLInputElemen
 }
 
 interface InputFieldProps extends Omit<TextInputProps, "type"> {
-  type?: TextInputType | "password";
+  type?: TextInputType | "password" | "number";
+  leading?: ReactNode;
   trailing?: ReactNode;
 }
 
@@ -27,6 +28,7 @@ export function InputField({
   disabled,
   readOnly,
   className = "",
+  leading,
   trailing,
   ref,
   "aria-describedby": describedBy,
@@ -46,6 +48,7 @@ export function InputField({
         {label}{required && <span aria-hidden="true" className="ml-1 text-danger">*</span>}
       </label>
       <div className="relative min-w-0">
+        {leading}
         <input
           {...props}
           ref={ref}
@@ -56,7 +59,7 @@ export function InputField({
           readOnly={readOnly}
           aria-describedby={description}
           aria-invalid={error ? true : ariaInvalid}
-          className={`h-11 w-full min-w-0 rounded-lg border bg-white px-3 text-base text-ink placeholder:text-muted transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 read-only:bg-canvas disabled:cursor-not-allowed disabled:bg-canvas disabled:opacity-60 motion-reduce:transition-none ${error ? "border-danger enabled:hover:border-danger focus-visible:outline-danger" : "border-line enabled:hover:border-muted focus-visible:border-brand focus-visible:outline-brand"} ${trailing ? "pr-14" : ""} ${className}`}
+          className={`h-11 w-full min-w-0 rounded-lg border bg-white px-3 text-base text-ink placeholder:text-muted transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 read-only:bg-canvas disabled:cursor-not-allowed disabled:bg-canvas disabled:opacity-60 motion-reduce:transition-none ${error ? "border-danger enabled:hover:border-danger focus-visible:outline-danger" : "border-line enabled:hover:border-muted focus-visible:border-brand focus-visible:outline-brand"} ${leading ? "pl-10" : ""} ${trailing ? "pr-14" : ""} ${className}`}
         />
         {trailing}
       </div>

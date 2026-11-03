@@ -18,6 +18,7 @@ export function PasswordInput({ disabled, readOnly, autoComplete = "current-pass
         <button
           type="button"
           aria-label={visible ? "Ocultar contraseña" : "Mostrar contraseña"}
+          aria-pressed={visible}
           disabled={disabled}
           onClick={() => setVisible((previous) => !previous)}
           className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-muted transition-colors enabled:hover:bg-brand-soft enabled:hover:text-brand enabled:active:bg-brand/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
