@@ -20,6 +20,25 @@ interface AuthState {
 let pendingRefresh: Promise<string | null> | null = null;
 let sessionVersion = 0;
 
+// Web Locks coordina pestañas del mismo origen.
+const AUTH_LOCK = "shopcart:auth:session";
+
+async function withAuthLock<T>(operation: () => Promise<T>): Promise<T> {
+  if (!navigator.locks) {
+    throw new Error(
+      "El navegador no admite la coordinación segura de sesiones.",
+    );
+  }
+
+  return navigator.locks.request(AUTH_LOCK, { mode: "exclusive" }, operation);
+}
+
+// No se transmiten tokens ni credenciales.
+const authChannel =
+  typeof BroadcastChannel !== "undefined"
+    ? new BroadcastChannel("shopcart:auth")
+    : null;
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   accessToken: null,
@@ -47,6 +66,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           status: "unauthenticated",
         });
       }
+
       throw error;
     }
   },
@@ -62,8 +82,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     const operation = (async (): Promise<string | null> => {
       try {
-        const session = await refreshClient();
+        // La petición HTTP ocurre DENTRO del bloqueo.
+        // La pestaña siguiente recibe la cookie ya rotada.
+        const session = await withAuthLock(refreshClient);
 
+        // Descarta resultados que lleguen después de logout/login.
         if (version !== sessionVersion) return null;
 
         set({
@@ -87,6 +110,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     })();
 
     pendingRefresh = operation;
+
     void operation.finally(() => {
       if (pendingRefresh === operation) {
         pendingRefresh = null;
@@ -97,7 +121,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
-    await logoutClient();
+    // Comparte el bloqueo con refresh para impedir
+    // la rotación mientras se revoca la cookie.
+    await withAuthLock(logoutClient);
 
     ++sessionVersion;
 
@@ -106,10 +132,51 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       accessToken: null,
       status: "unauthenticated",
     });
+
+    // Avisar a todas las demás pestañas.
+    authChannel?.postMessage({ type: "logout" });
   },
 }));
 
-configureAuthInterceptors({
+// Logout recibido desde otra pestaña.
+if (authChannel) {
+  authChannel.onmessage = (event: MessageEvent<unknown>) => {
+    const message = event.data;
+
+    if (
+      typeof message !== "object" ||
+      message === null ||
+      !("type" in message) ||
+      message.type !== "logout"
+    ) {
+      return;
+    }
+
+    ++sessionVersion;
+
+    useAuthStore.setState({
+      user: null,
+      accessToken: null,
+      status: "unauthenticated",
+    });
+  };
+}
+
+const removeInterceptors = configureAuthInterceptors({
   getAccessToken: () => useAuthStore.getState().accessToken,
   refreshAccessToken: () => useAuthStore.getState().restoreSession(),
 });
+
+// Liberar recursos al reemplazar el módulo durante desarrollo.
+if (import.meta.hot) {
+  // El store es una frontera HMR explícita.
+  // Una actualización requiere reconstruir la sesión.
+  import.meta.hot.accept(() => {
+    window.location.reload();
+  });
+
+  import.meta.hot.dispose(() => {
+    authChannel?.close();
+    removeInterceptors();
+  });
+}
