@@ -120,8 +120,21 @@ BEGIN
     
     DECLARE @Accion AS VARCHAR(30);
     
+    DECLARE @RecursoUsuario AS NVARCHAR(255);
+    
+    DECLARE @ResultadoBloqueo AS INT;
+    
+    SET @RecursoUsuario = N'ShopCart:Usuario:' + CONVERT (NVARCHAR(20), @IDUsuario);
+    
     BEGIN TRY
         BEGIN TRANSACTION;
+        
+        -- Serializar cambios de estado y operaciones de sesión
+        -- para este mismo usuario.
+        EXECUTE @ResultadoBloqueo = sys.sp_getapplock @Resource = @RecursoUsuario, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 10000;
+        
+        IF @ResultadoBloqueo < 0
+            THROW 52113, N'No se pudo bloquear el usuario.', 1;
         
         -- Defensa adicional al middleware administrativo.
         IF NOT EXISTS (SELECT 1

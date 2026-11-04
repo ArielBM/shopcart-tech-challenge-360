@@ -57,7 +57,7 @@ export async function validateCredentials(data: LoginInput) {
   const accessToken = await createAccessToken({
     idUsuario: user.IDUsuario,
     rol: user.Rol,
-    versionSeguridad: user.VersionSeguridad,
+    versionSeguridad: session.VersionSeguridad,
   });
 
   return {

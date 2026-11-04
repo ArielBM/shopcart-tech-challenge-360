@@ -84,32 +84,77 @@ AS
 BEGIN
     SET NOCOUNT ON;
     
-    -- Validar antes de guardar evita aceptar hashes incompletos o truncados.
+    SET XACT_ABORT ON;
+    
     IF @TokenHash IS NULL
        OR DATALENGTH(@TokenHash) <> 32
         THROW 51021, N'El hash del token debe contener exactamente 32 bytes.', 1;
     
-    DECLARE @Ahora AS DATETIME2(3) = SYSUTCDATETIME();
-    
-    INSERT INTO dbo.RefreshToken (
-        IDUsuario,
-        TokenHash,
-        IDFamilia,
-        FechaCreacion,
-        FechaExpiracion
-    )
-    OUTPUT INSERTED.IDRefreshToken, INSERTED.IDFamilia, INSERTED.FechaExpiracion
-    SELECT u.IDUsuario,
-           @TokenHash,
-           NEWID(),
-           @Ahora,
-           DATEADD(DAY, 7, @Ahora)
-    FROM dbo.Usuario AS u
-    WHERE u.IDUsuario = @IDUsuario
-          AND u.Activo = 1;
-    
-    IF @@ROWCOUNT = 0
+    IF @IDUsuario IS NULL
+       OR @IDUsuario <= 0
         THROW 51020, N'No se puede crear la sesión.', 1;
+    
+    DECLARE @RecursoUsuario AS NVARCHAR(255) = N'ShopCart:Usuario:' + CONVERT (NVARCHAR(20), @IDUsuario);
+    
+    DECLARE @ResultadoBloqueo AS INT;
+    
+    DECLARE @Activo AS BIT;
+    
+    DECLARE @VersionSeguridad AS INT;
+    
+    DECLARE @Ahora AS DATETIME2(3);
+    
+    DECLARE @SesionCreada TABLE (
+        IDRefreshToken  BIGINT          ,
+        IDFamilia       UNIQUEIDENTIFIER,
+        FechaExpiracion DATETIME2(3)    );
+    
+    BEGIN TRY
+        BEGIN TRANSACTION;
+        
+        -- Mismo bloqueo utilizado por CambiarEstado.
+        EXECUTE @ResultadoBloqueo = sys.sp_getapplock @Resource = @RecursoUsuario, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 10000;
+        
+        IF @ResultadoBloqueo < 0
+            THROW 51026, N'No se pudo bloquear el usuario.', 1;
+        
+        -- La versión se obtiene al crear la sesión,
+        -- no antes de verificar la contraseña con Argon2.
+        SELECT @Activo = Activo,
+               @VersionSeguridad = VersionSeguridad
+        FROM dbo.Usuario WITH (UPDLOCK, HOLDLOCK)
+        WHERE IDUsuario = @IDUsuario;
+        
+        IF @Activo IS NULL
+           OR @Activo = 0
+            THROW 51020, N'No se puede crear la sesión.', 1;
+        
+        SET @Ahora = SYSUTCDATETIME();
+        
+        INSERT INTO dbo.RefreshToken (
+            IDUsuario,
+            TokenHash,
+            IDFamilia,
+            FechaCreacion,
+            FechaExpiracion
+        )
+        OUTPUT INSERTED.IDRefreshToken, INSERTED.IDFamilia, INSERTED.FechaExpiracion INTO @SesionCreada
+        VALUES                       (@IDUsuario, @TokenHash, NEWID(), @Ahora, DATEADD(DAY, 7, @Ahora));
+        
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK;
+        
+        THROW;
+    END CATCH
+    
+    SELECT IDRefreshToken,
+           IDFamilia,
+           FechaExpiracion,
+           @VersionSeguridad AS VersionSeguridad
+    FROM @SesionCreada;
 END
 
 
@@ -133,9 +178,13 @@ BEGIN
     IF @TokenHashActual = @TokenHashNuevo
         THROW 51025, N'El nuevo token debe ser diferente.', 1;
     
-    DECLARE @Ahora AS DATETIME2(3);
+    DECLARE @IDUsuario AS INT;
     
-    DECLARE @Recurso AS NVARCHAR(255);
+    DECLARE @IDFamilia AS UNIQUEIDENTIFIER;
+    
+    DECLARE @RecursoUsuario AS NVARCHAR(255);
+    
+    DECLARE @RecursoFamilia AS NVARCHAR(255);
     
     DECLARE @ResultadoBloqueo AS INT;
     
@@ -143,50 +192,66 @@ BEGIN
     
     DECLARE @IDNuevo AS BIGINT;
     
-    DECLARE @IDUsuario AS INT;
-    
-    DECLARE @IDFamilia AS UNIQUEIDENTIFIER;
-    
     DECLARE @Expiracion AS DATETIME2(3);
     
     DECLARE @Revocacion AS DATETIME2(3);
     
     DECLARE @Activo AS BIT;
     
-    DECLARE @Reutilizado AS BIT = 0;
-    
     DECLARE @VersionSeguridad AS INT;
     
-    -- Identificar la familia sin retener bloqueos.
-    SELECT @IDFamilia = IDFamilia
+    DECLARE @Reutilizado AS BIT = 0;
+    
+    DECLARE @Ahora AS DATETIME2(3);
+    
+    -- Identificar usuario y familia sin conservar bloqueos.
+    -- Estos identificadores son inmutables en RefreshToken.
+    SELECT @IDUsuario = IDUsuario,
+           @IDFamilia = IDFamilia
     FROM dbo.RefreshToken
     WHERE TokenHash = @TokenHashActual;
     
-    IF @IDFamilia IS NULL
+    IF @IDUsuario IS NULL
+       OR @IDFamilia IS NULL
         THROW 51022, N'Token desconocido.', 1;
     
-    SET @Recurso = N'ShopCart:Refresh:' + CONVERT (NVARCHAR(36), @IDFamilia);
+    SET @RecursoUsuario = N'ShopCart:Usuario:' + CONVERT (NVARCHAR(20), @IDUsuario);
+    
+    SET @RecursoFamilia = N'ShopCart:Refresh:' + CONVERT (NVARCHAR(36), @IDFamilia);
     
     BEGIN TRY
         BEGIN TRANSACTION;
         
-        EXECUTE @ResultadoBloqueo = sys.sp_getapplock @Resource = @Recurso, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 10000;
+        -- 1. Bloquear primero al usuario.
+        EXECUTE @ResultadoBloqueo = sys.sp_getapplock @Resource = @RecursoUsuario, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 10000;
+        
+        IF @ResultadoBloqueo < 0
+            THROW 51026, N'No se pudo bloquear el usuario.', 1;
+        
+        -- 2. Leer y bloquear el estado vigente del usuario.
+        SELECT @Activo = Activo,
+               @VersionSeguridad = VersionSeguridad
+        FROM dbo.Usuario WITH (UPDLOCK, HOLDLOCK)
+        WHERE IDUsuario = @IDUsuario;
+        
+        IF @Activo IS NULL
+           OR @Activo = 0
+            THROW 51023, N'Sesion no vigente.', 1;
+        
+        -- 3. Bloquear la familia después del usuario.
+        EXECUTE @ResultadoBloqueo = sys.sp_getapplock @Resource = @RecursoFamilia, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 10000;
         
         IF @ResultadoBloqueo < 0
             THROW 51026, N'No se pudo bloquear la sesión.', 1;
         
-        SELECT @IDAnterior = rt.IDRefreshToken,
-               @IDUsuario = rt.IDUsuario,
-               @Expiracion = rt.FechaExpiracion,
-               @Revocacion = rt.FechaRevocacion,
-               @Activo = u.Activo,
-               @VersionSeguridad = u.VersionSeguridad
-        FROM dbo.RefreshToken AS rt WITH (UPDLOCK, HOLDLOCK)
-             INNER JOIN
-             dbo.Usuario AS u
-             ON u.IDUsuario = rt.IDUsuario
-        WHERE rt.TokenHash = @TokenHashActual
-              AND rt.IDFamilia = @IDFamilia;
+        -- 4. Consultar el token bajo bloqueo.
+        SELECT @IDAnterior = IDRefreshToken,
+               @Expiracion = FechaExpiracion,
+               @Revocacion = FechaRevocacion
+        FROM dbo.RefreshToken WITH (UPDLOCK, HOLDLOCK)
+        WHERE TokenHash = @TokenHashActual
+              AND IDFamilia = @IDFamilia
+              AND IDUsuario = @IDUsuario;
         
         SET @Ahora = SYSUTCDATETIME();
         
@@ -195,8 +260,7 @@ BEGIN
         
         IF @Revocacion IS NOT NULL
             BEGIN
-                -- El token ya fue consumido o revocado.
-                -- Invalidar toda la familia ante posible reutilización.
+                -- Reutilización: revocar la familia completa.
                 UPDATE dbo.RefreshToken
                 SET FechaRevocacion = @Ahora
                 WHERE IDFamilia = @IDFamilia
@@ -207,13 +271,14 @@ BEGIN
         ELSE
             BEGIN
                 IF @Expiracion <= @Ahora
-                   OR @Activo = 0
                     THROW 51023, N'Sesion no vigente.', 1;
                 
+                -- Consumir el token anterior.
                 UPDATE dbo.RefreshToken
                 SET FechaRevocacion = @Ahora
                 WHERE IDRefreshToken = @IDAnterior;
                 
+                -- Mantener la familia y la expiración absoluta.
                 INSERT INTO dbo.RefreshToken (
                     IDUsuario,
                     TokenHash,

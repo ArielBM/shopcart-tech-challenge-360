@@ -29,6 +29,7 @@ export interface CreatedSession {
   IDRefreshToken: number;
   IDFamilia: string;
   FechaExpiracion: Date;
+  VersionSeguridad: number;
 }
 
 export interface RotatedSession {
