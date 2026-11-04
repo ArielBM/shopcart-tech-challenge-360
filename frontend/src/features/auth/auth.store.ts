@@ -1,3 +1,4 @@
+import axios from "axios";
 import { create } from "zustand";
 import {
   configureAuthInterceptors,
@@ -75,6 +76,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (pendingRefresh) return pendingRefresh;
 
     const version = sessionVersion;
+    const previousStatus = get().status;
 
     if (get().status === "idle") {
       set({ status: "loading" });
@@ -96,26 +98,39 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         });
 
         return session.accessToken;
-      } catch {
-        if (version === sessionVersion) {
+      } catch (error) {
+        if (version !== sessionVersion) return null;
+
+        if (axios.isAxiosError(error) && error.response?.status === 401) {
           set({
             user: null,
             accessToken: null,
             status: "unauthenticated",
           });
+
+          return null;
         }
 
-        return null;
+        // Error temporal: no tenemos evidencia de revocación.
+        if (previousStatus === "idle") {
+          set({ status: "idle" });
+        }
+
+        // Conservar una sesión previa, si existe.
+        // El consumidor decidirá cómo mostrar o recuperar el error.
+        throw error;
       }
     })();
 
     pendingRefresh = operation;
 
-    void operation.finally(() => {
+    const clearPending = () => {
       if (pendingRefresh === operation) {
         pendingRefresh = null;
       }
-    });
+    };
+
+    void operation.then(clearPending, clearPending);
 
     return operation;
   },
