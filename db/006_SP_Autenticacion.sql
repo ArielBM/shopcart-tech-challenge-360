@@ -64,7 +64,8 @@ BEGIN
            u.Correo,
            u.Nombre,
            u.HashContrasena,
-           r.Codigo AS Rol
+           r.Codigo AS Rol,
+           u.VersionSeguridad
     FROM dbo.Usuario AS u
          INNER JOIN
          dbo.Rol AS r
@@ -154,6 +155,8 @@ BEGIN
     
     DECLARE @Reutilizado AS BIT = 0;
     
+    DECLARE @VersionSeguridad AS INT;
+    
     -- Identificar la familia sin retener bloqueos.
     SELECT @IDFamilia = IDFamilia
     FROM dbo.RefreshToken
@@ -176,7 +179,8 @@ BEGIN
                @IDUsuario = rt.IDUsuario,
                @Expiracion = rt.FechaExpiracion,
                @Revocacion = rt.FechaRevocacion,
-               @Activo = u.Activo
+               @Activo = u.Activo,
+               @VersionSeguridad = u.VersionSeguridad
         FROM dbo.RefreshToken AS rt WITH (UPDLOCK, HOLDLOCK)
              INNER JOIN
              dbo.Usuario AS u
@@ -240,7 +244,8 @@ BEGIN
            u.Correo,
            u.Nombre,
            r.Codigo AS Rol,
-           rt.FechaExpiracion
+           rt.FechaExpiracion,
+           @VersionSeguridad AS VersionSeguridad
     FROM dbo.RefreshToken AS rt
          INNER JOIN
          dbo.Usuario AS u

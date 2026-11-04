@@ -7,7 +7,18 @@ export async function createAccessToken(
 ): Promise<string> {
   const issuedAt = Math.floor(Date.now() / 1000);
 
-  return new SignJWT({ rol: user.rol })
+  if (
+    !Number.isSafeInteger(user.versionSeguridad) ||
+    user.versionSeguridad < 1 ||
+    user.versionSeguridad > 2147483647
+  ) {
+    throw new Error("Versión de seguridad inválida.");
+  }
+
+  return new SignJWT({
+    rol: user.rol,
+    versionSeguridad: user.versionSeguridad,
+  })
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
     .setSubject(String(user.idUsuario))
     .setIssuer(authConfig.jwtIssuer)
@@ -24,15 +35,20 @@ export async function verifyAccessToken(
     algorithms: ["HS256"],
     issuer: authConfig.jwtIssuer,
     audience: authConfig.jwtAudience,
-    requiredClaims: ["sub", "iat", "exp"],
+    requiredClaims: ["sub", "iat", "exp", "versionSeguridad"],
   });
 
   const idUsuario = Number(payload.sub);
+  const versionSeguridad = payload.versionSeguridad;
 
   if (
     !Number.isSafeInteger(idUsuario) ||
     idUsuario <= 0 ||
-    !isRole(payload.rol)
+    !isRole(payload.rol) ||
+    typeof versionSeguridad !== "number" ||
+    !Number.isSafeInteger(versionSeguridad) ||
+    versionSeguridad < 1 ||
+    versionSeguridad > 2147483647
   ) {
     throw new Error("Access token con claims inválidos.");
   }
@@ -40,5 +56,6 @@ export async function verifyAccessToken(
   return {
     idUsuario,
     rol: payload.rol,
+    versionSeguridad,
   };
 }

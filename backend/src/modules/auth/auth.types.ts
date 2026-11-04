@@ -16,11 +16,13 @@ export interface LoginUser {
   Nombre: string;
   HashContrasena: string;
   Rol: string;
+  VersionSeguridad: number;
 }
 
 export interface AccessTokenPayload {
   idUsuario: number;
   rol: Role;
+  versionSeguridad: number;
 }
 
 export interface CreatedSession {
@@ -35,6 +37,14 @@ export interface RotatedSession {
   Nombre: string;
   Rol: string;
   FechaExpiracion: Date;
+  VersionSeguridad: number;
+}
+
+export interface ActiveUserRecord {
+  IDUsuario: number;
+  Activo: boolean;
+  Rol: string;
+  VersionSeguridad: number;
 }
 
 export type Role = "CLIENTE" | "OPERADOR" | "ADMINISTRADOR";

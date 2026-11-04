@@ -57,6 +57,7 @@ export async function validateCredentials(data: LoginInput) {
   const accessToken = await createAccessToken({
     idUsuario: user.IDUsuario,
     rol: user.Rol,
+    versionSeguridad: user.VersionSeguridad,
   });
 
   return {
@@ -88,6 +89,7 @@ export async function refreshSession(currentToken: string) {
   const accessToken = await createAccessToken({
     idUsuario: session.IDUsuario,
     rol: session.Rol,
+    versionSeguridad: session.VersionSeguridad,
   });
 
   return {

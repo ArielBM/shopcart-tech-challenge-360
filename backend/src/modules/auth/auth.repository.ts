@@ -6,6 +6,7 @@ import type {
   LoginUser,
   CreatedSession,
   RotatedSession,
+  ActiveUserRecord,
 } from "./auth.types";
 
 export async function createUser(
@@ -90,3 +91,15 @@ export async function revokeSession(tokenHash: Buffer): Promise<void> {
     .execute("dbo.SP_Auth_RevocarSesion");
 }
 
+export async function findUserActiveStatus(
+  idUsuario: number,
+): Promise<ActiveUserRecord | undefined> {
+  const pool = await getConnection();
+
+  const result = await pool
+    .request()
+    .input("IDUsuario", sql.Int, idUsuario)
+    .execute<ActiveUserRecord>("dbo.SP_Auth_ValidarUsuarioActivo");
+
+  return result.recordset[0];
+}

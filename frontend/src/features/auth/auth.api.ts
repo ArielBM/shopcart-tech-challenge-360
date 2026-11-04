@@ -10,16 +10,19 @@ import type {
 
 export async function registerClient(input: RegisterInput) {
   const { data } = await api.post<RegisterResponse>("/auth/register", input);
+
   return data.data;
 }
 
 export async function loginClient(input: LoginInput) {
   const { data } = await api.post<AuthResponse>("/auth/login", input);
+
   return data.data;
 }
 
 export async function refreshClient() {
   const { data } = await api.post<AuthResponse>("/auth/refresh");
+
   return data.data;
 }
 
@@ -30,11 +33,18 @@ export async function logoutClient(): Promise<void> {
 interface AuthHandlers {
   getAccessToken: () => string | null;
   refreshAccessToken: () => Promise<string | null>;
+  onUserInactive: (attemptedToken: string | undefined) => void;
 }
 
 type RetryConfig = InternalAxiosRequestConfig & {
   _authRetried?: boolean;
 };
+
+interface AuthErrorResponse {
+  error?: {
+    code?: string;
+  };
+}
 
 function isAuthEndpoint(url?: string): boolean {
   return /\/auth\/(login|register|refresh|logout)(?:[?#]|$)/.test(url ?? "");
@@ -53,12 +63,26 @@ export function configureAuthInterceptors(handlers: AuthHandlers): () => void {
 
   const responseId = api.interceptors.response.use(
     (response) => response,
+
     async (error: unknown) => {
-      if (!axios.isAxiosError(error)) {
+      if (!axios.isAxiosError<AuthErrorResponse>(error)) {
         return Promise.reject(error);
       }
 
       const config = error.config as RetryConfig | undefined;
+
+      const errorCode = error.response?.data?.error?.code;
+
+      if (
+        error.response?.status === 401 &&
+        (errorCode === "USER_INACTIVE" || errorCode === "SESSION_REVOKED")
+      ) {
+        const attemptedToken = config?.headers.get("Authorization")?.toString();
+
+        handlers.onUserInactive(attemptedToken);
+
+        return Promise.reject(error);
+      }
 
       if (
         error.response?.status !== 401 ||
@@ -77,6 +101,7 @@ export function configureAuthInterceptors(handlers: AuthHandlers): () => void {
       // Otra petición pudo haber renovado el token.
       if (latestToken && attemptedToken !== `Bearer ${latestToken}`) {
         config.headers.set("Authorization", `Bearer ${latestToken}`);
+
         return api(config);
       }
 
@@ -87,6 +112,7 @@ export function configureAuthInterceptors(handlers: AuthHandlers): () => void {
       }
 
       config.headers.set("Authorization", `Bearer ${newToken}`);
+
       return api(config);
     },
   );

@@ -40,6 +40,20 @@ const authChannel =
     ? new BroadcastChannel("shopcart:auth")
     : null;
 
+function clearLocalSession(broadcast: boolean): void {
+  ++sessionVersion;
+
+  useAuthStore.setState({
+    user: null,
+    accessToken: null,
+    status: "unauthenticated",
+  });
+
+  if (broadcast) {
+    authChannel?.postMessage({ type: "logout" });
+  }
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   accessToken: null,
@@ -102,22 +116,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         if (version !== sessionVersion) return null;
 
         if (axios.isAxiosError(error) && error.response?.status === 401) {
-          set({
-            user: null,
-            accessToken: null,
-            status: "unauthenticated",
-          });
-
+          clearLocalSession(true);
           return null;
         }
 
-        // Error temporal: no tenemos evidencia de revocación.
+        // Error temporal: no hay evidencia de revocación.
         if (previousStatus === "idle") {
           set({ status: "idle" });
         }
 
-        // Conservar una sesión previa, si existe.
-        // El consumidor decidirá cómo mostrar o recuperar el error.
+        // Conservar la sesión previa y propagar el error.
         throw error;
       }
     })();
@@ -140,16 +148,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // la rotación mientras se revoca la cookie.
     await withAuthLock(logoutClient);
 
-    ++sessionVersion;
-
-    set({
-      user: null,
-      accessToken: null,
-      status: "unauthenticated",
-    });
-
-    // Avisar a todas las demás pestañas.
-    authChannel?.postMessage({ type: "logout" });
+    clearLocalSession(true);
   },
 }));
 
@@ -167,19 +166,23 @@ if (authChannel) {
       return;
     }
 
-    ++sessionVersion;
-
-    useAuthStore.setState({
-      user: null,
-      accessToken: null,
-      status: "unauthenticated",
-    });
+    clearLocalSession(false);
   };
 }
 
 const removeInterceptors = configureAuthInterceptors({
   getAccessToken: () => useAuthStore.getState().accessToken,
+
   refreshAccessToken: () => useAuthStore.getState().restoreSession(),
+
+  onUserInactive: (attemptedToken) => {
+    const currentToken = useAuthStore.getState().accessToken;
+
+    // Una respuesta tardía no debe cerrar una sesión nueva.
+    if (currentToken && attemptedToken === `Bearer ${currentToken}`) {
+      clearLocalSession(true);
+    }
+  },
 });
 
 // Liberar recursos al reemplazar el módulo durante desarrollo.

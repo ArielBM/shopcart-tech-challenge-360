@@ -535,6 +535,42 @@ const sqlErrorResponses: Readonly<Partial<Record<number, HttpErrorResponse>>> =
       code: "PAYMENT_INVALID_STATE",
       message: "El intento de pago no admite registrar un fallo.",
     },
+    // Administración de usuarios.
+    52100: {
+      status: 400,
+      code: "INVALID_PAGINATION",
+      message: "La paginación proporcionada no es válida.",
+    },
+    52101: {
+      status: 400,
+      code: "INVALID_USER_STATUS_FILTER",
+      message: "El filtro de estado no es válido.",
+    },
+    52102: {
+      status: 400,
+      code: "INVALID_USER_STATUS_REQUEST",
+      message: "Los datos del cambio de estado no son válidos.",
+    },
+    52103: {
+      status: 403,
+      code: "USER_ADMIN_REQUIRED",
+      message: "No tienes autorización para administrar usuarios.",
+    },
+    52104: {
+      status: 409,
+      code: "USER_SELF_DEACTIVATION",
+      message: "No puedes desactivar tu propia cuenta.",
+    },
+    52105: {
+      status: 404,
+      code: "USER_NOT_FOUND",
+      message: "El usuario solicitado no existe.",
+    },
+    51020: {
+      status: 401,
+      code: "INVALID_CREDENTIALS",
+      message: "Correo o contraseña incorrectos.",
+    },
   };
 
 function isObject(value: unknown): value is Record<string, unknown> {

@@ -48,7 +48,8 @@ BEGIN TRY
         Nombre             NVARCHAR(150) NOT NULL,
         Activo             BIT           NOT NULL,
         FechaCreacion      DATETIME2(3)  NOT NULL,
-        FechaActualizacion DATETIME2(3)  NOT NULL
+        FechaActualizacion DATETIME2(3)  NOT NULL,
+        VersionSeguridad   INT           NOT NULL
     );
     
     -- Cuenta activa y fechas UTC por defecto.
@@ -61,6 +62,9 @@ BEGIN TRY
     ALTER TABLE dbo.Usuario
         ADD CONSTRAINT DF_Usuario_FechaActualizacion DEFAULT (SYSUTCDATETIME()) FOR FechaActualizacion;
     
+    ALTER TABLE dbo.Usuario
+        ADD CONSTRAINT DF_Usuario_VersionSeguridad DEFAULT (1) FOR VersionSeguridad;
+    
     -- El correo no puede estar vacio.
     ALTER TABLE dbo.Usuario
         ADD CONSTRAINT CK_Usuario_CorreoNoVacio CHECK (LEN(LTRIM(RTRIM(Correo))) > 0);
@@ -72,6 +76,9 @@ BEGIN TRY
     -- Un correo por cuenta.
     ALTER TABLE dbo.Usuario
         ADD CONSTRAINT UQ_Usuario_Correo UNIQUE (Correo);
+    
+    ALTER TABLE dbo.Usuario
+        ADD CONSTRAINT CK_Usuario_VersionSeguridad CHECK (VersionSeguridad >= 1);
     
     -- 3. Categoria | Clasificacion del catalogo.
     CREATE TABLE dbo.Categoria (

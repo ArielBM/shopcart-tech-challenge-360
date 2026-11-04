@@ -8,8 +8,14 @@ import { LoginPage } from "../features/auth/pages/LoginPage";
 import { RegisterPage } from "../features/auth/pages/RegisterPage";
 import { ProtectedRoute } from "../features/auth/ProtectedRoute";
 import { AccountActions } from "../features/auth/AccountActions";
+import { useAuthStore } from "../features/auth/auth.store";
+import { UsersPage } from "../features/users/pages/UsersPage";
 
 export function AppRouter() {
+  const role = useAuthStore((state) => state.user?.rol);
+
+  const adminNavigation =
+    role === "ADMINISTRADOR" ? [{ label: "Usuarios", to: "/admin/users" }] : [];
   return (
     <Routes>
       <Route element={<AuthLayout />}>
@@ -24,7 +30,12 @@ export function AppRouter() {
       >
         <Route
           path="/admin"
-          element={<AdminLayout headerActions={<AccountActions />} />}
+          element={
+            <AdminLayout
+              navigation={adminNavigation}
+              headerActions={<AccountActions />}
+            />
+          }
         >
           <Route
             index
@@ -37,6 +48,9 @@ export function AppRouter() {
               </div>
             }
           />
+          <Route element={<ProtectedRoute allowedRoles={["ADMINISTRADOR"]} />}>
+            <Route path="users" element={<UsersPage />} />
+          </Route>
         </Route>
       </Route>
 
